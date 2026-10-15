@@ -1,0 +1,25 @@
+{
+  "name": "epubforge",
+  "version": "3.5.0",
+  "description": "Konverter, OCR & Validator EPUB 3.3 Berbasis Web",
+  "private": true,
+  "scripts": {
+    "dev": "serve .",
+    "start": "serve .",
+    "build": "echo \"Static build ready\""
+  },
+  "keywords": [
+    "epub",
+    "epub3",
+    "converter",
+    "ocr",
+    "validator",
+    "ebook",
+    "vercel"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
+}

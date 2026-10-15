@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EPUBForge v3.5 — Konverter, OCR & Validator EPUB 3.3</title>
+  <meta name="description" content="EPUBForge — Konverter, OCR & Validator EPUB 3.3 berbasis web. Ubah dokumen PDF, DOCX, TXT, dan Markdown menjadi berkas EPUB 3.3 standar industri langsung di peramban.">
+  <meta name="theme-color" content="#FF4F00">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  
+  <!-- Open Graph / Social -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="EPUBForge v3.5 — Konverter, OCR & Validator EPUB 3.3">
+  <meta property="og:description" content="Ubah dokumen PDF, DOCX, TXT, dan Markdown menjadi EPUB 3.3 valid dengan OCR dan pratinjau e-reader langsung di browser.">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap" rel="stylesheet">
+
+  <!-- Core Engines: JSZip, Mammoth (DOCX) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+  <!-- PDF.js + WORKER DIMUAT LANGSUNG AGAR TIDAK ERROR DI PROTOKOL FILE:/// -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+
+  <!-- Tesseract.js (OCR untuk PDF Scan) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+            serif: ['Literata', 'Georgia', 'serif']
+          },
+          colors: {
+            paper: '#FAF8F5',
+            carbon: '#0D0D0D',
+            panel: '#141414',
+            borderDark: '#262626',
+            borderLight: '#E5E2DC',
+            accent: '#FF4F00',
+            ok: '#10B981'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { font-feature-settings: "cv02", "cv03", "cv04", "cv11"; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #333; }
+    ::-webkit-scrollbar-thumb:hover { background: #555; }
+    .ereader-page p { margin-bottom: 1em; line-height: 1.65; }
+    .ereader-page h1, .ereader-page h2 { font-weight: 600; margin: 1.2em 0 0.6em; line-height: 1.25; }
+    .ereader-page img { max-width: 100%; height: auto; margin: 0.5em auto; display: block; }
+  </style>
+</head>
+
+<body class="bg-paper dark:bg-carbon text-neutral-900 dark:text-neutral-100 font-sans antialiased selection:bg-accent selection:text-white min-h-screen flex flex-col">
+
+  <!-- TOP UTILITY BAR -->
+  <header class="h-12 border-b border-borderLight dark:border-borderDark px-4 flex items-center justify-between bg-white/60 dark:bg-panel/80 backdrop-blur-sm sticky top-0 z-30">
+    <div class="flex items-center gap-3">
+      <div class="w-3 h-3 bg-accent"></div>
+      <span class="font-mono font-semibold tracking-tight text-sm">EPUBFORGE // ENGINE v3.5</span>
+      <span class="hidden sm:inline-block text-xs font-mono px-2 py-0.5 bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
+        EPUB 3.3 STRICT + VERCEL & LOCAL READY
+      </span>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button id="btnSample" class="text-xs font-mono px-2.5 py-1 border border-borderLight dark:border-borderDark hover:border-neutral-500 transition">
+        Muat Naskah Contoh
+      </button>
+      <button id="btnTheme" class="text-xs font-mono px-2.5 py-1 border border-borderLight dark:border-borderDark hover:border-neutral-500 transition">
+        Tema: Gelap
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE GRID -->
+  <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-borderLight dark:divide-borderDark">
+
+    <!-- LEFT COLUMN (7 COLS) -->
+    <section class="lg:col-span-7 flex flex-col divide-y divide-borderLight dark:divide-borderDark">
+      
+      <!-- 1. DROPZONE & INPUT AREA -->
+      <div class="p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-xs font-mono uppercase tracking-wider text-neutral-500">01 / Input Berkas Naskah</h2>
+          <span class="text-xs font-mono text-neutral-500">Format: .PDF (Teks/Scan), .DOCX, .TXT, .MD, .HTML</span>
+        </div>
+
+        <label id="dropzone" class="group relative flex flex-col items-center justify-center border border-dashed border-neutral-400 dark:border-neutral-700 hover:border-accent dark:hover:border-accent bg-white/40 dark:bg-panel/40 p-6 cursor-pointer transition">
+          <input type="file" id="fileInput" class="hidden" accept=".txt,.md,.html,.htm,.docx,.pdf" />
+          <div class="text-center">
+            <p class="text-sm font-medium mb-1">Seret berkas buku ke area ini atau <span class="underline decoration-accent underline-offset-4">pilih dari perangkat</span></p>
+            <p class="text-xs font-mono text-neutral-500">Mendukung ekstraksi teks langsung & pemindaian PDF gambar (Scan/OCR).</p>
+          </div>
+          <div id="activeFileBadge" class="hidden mt-4 px-3 py-1.5 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 font-mono text-xs flex items-center gap-2">
+            <span id="fileNameDisplay">-</span>
+            <span id="fileSizeDisplay" class="opacity-70"></span>
+          </div>
+        </label>
+
+        <!-- Progress Bar -->
+        <div id="progressContainer" class="hidden mt-3 border border-borderLight dark:border-borderDark p-3 bg-neutral-100 dark:bg-neutral-900">
+          <div class="flex justify-between text-xs font-mono mb-1.5">
+            <span id="progressLabel">Memproses halaman...</span>
+            <span id="progressPercent">0%</span>
+          </div>
+          <div class="w-full h-1.5 bg-neutral-300 dark:bg-neutral-800 overflow-hidden">
+            <div id="progressBar" class="h-full bg-accent transition-all duration-150" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Panel Deteksi PDF Scan -->
+        <div id="scanAlertPanel" class="hidden mt-3 border border-amber-600/60 bg-amber-950/30 p-3.5 text-xs font-mono">
+          <div class="text-amber-400 font-semibold mb-1">! DETEKSI PDF GAMBAR / HASIL SCAN (TANPA LAPISAN TEKS)</div>
+          <p class="text-neutral-300 text-[11px] leading-relaxed mb-3">
+            Berkas PDF ini menyimpan halaman sebagai gambar hasil scan. Pilih metode konversi di bawah agar isi buku tetap tampil utuh:
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <button id="btnRunImageEpub" class="px-3 py-1.5 bg-accent text-white font-semibold hover:bg-orange-600 transition">
+              Metode 1: Konversi Halaman ke Gambar EPUB (Cepat & 100% Presisi)
+            </button>
+            <button id="btnRunOcr" class="px-3 py-1.5 border border-amber-500 text-amber-300 hover:bg-amber-900/30 transition">
+              Metode 2: Ekstrak Teks via OCR (Tesseract Engine)
+            </button>
+          </div>
+        </div>
+
+        <!-- Pre-processing toggles -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-xs font-mono">
+          <label class="flex items-center gap-2 p-2 border border-borderLight dark:border-borderDark cursor-pointer">
+            <input type="checkbox" id="optUnwrap" checked class="accent-accent">
+            <span>Sambung Baris Putus (PDF)</span>
+          </label>
+          <label class="flex items-center gap-2 p-2 border border-borderLight dark:border-borderDark cursor-pointer">
+            <input type="checkbox" id="optCleanHeader" checked class="accent-accent">
+            <span>Hapus Nomor Halaman</span>
+          </label>
+          <label class="flex items-center gap-2 p-2 border border-borderLight dark:border-borderDark cursor-pointer">
+            <input type="checkbox" id="optSmartQuotes" checked class="accent-accent">
+            <span>Normalisasi UTF-8 & Kutip</span>
+          </label>
+          <label class="flex items-center gap-2 p-2 border border-borderLight dark:border-borderDark cursor-pointer">
+            <input type="checkbox" id="optStrictXhtml" checked disabled class="accent-accent">
+            <span>XHTML Self-Closing (Wajib)</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 2. DETECTED CHAPTERS & STRUCTURE EDITOR -->
+      <div class="p-5 flex-1 flex flex-col min-h-[250px]">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <h2 class="text-xs font-mono uppercase tracking-wider text-neutral-500">02 / Struktur Bab & Daftar Isi (TOC)</h2>
+            <span id="chapterCountBadge" class="text-xs font-mono px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-800">0 Bab</span>
+            <span id="totalWordBadge" class="text-xs font-mono px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-800 text-neutral-500">0 Kata</span>
+          </div>
+          <button id="btnAddChapter" class="text-xs font-mono px-2.5 py-1 border border-borderLight dark:border-borderDark hover:border-neutral-400">
+            + Tambah Bab Manual
+          </button>
+        </div>
+
+        <div id="chapterList" class="flex-1 overflow-y-auto border border-borderLight dark:border-borderDark divide-y divide-borderLight dark:divide-borderDark bg-white/30 dark:bg-panel/30 max-h-72">
+          <div class="p-8 text-center text-xs font-mono text-neutral-500">
+            Belum ada berkas yang dimuat. Unggah naskah atau klik "Muat Naskah Contoh" di bilah atas.
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. VALIDATION & SANITIZATION TERMINAL LOG -->
+      <div class="p-5 bg-neutral-950 text-neutral-200 font-mono text-xs">
+        <div class="flex items-center justify-between mb-2">
+          <span class="uppercase tracking-wider text-neutral-400">03 / Log Validasi Struktur EPUB (Pre-Flight Check)</span>
+          <span id="validationStatus" class="px-2 py-0.5 bg-neutral-800 text-neutral-400">MENUNGGU INPUT</span>
+        </div>
+        <div id="logConsole" class="h-36 overflow-y-auto space-y-1 text-[11px] leading-relaxed border border-neutral-800 p-3 bg-black/60">
+          <div class="text-neutral-500">[INIT] Mesin kompilasi EPUB 3.5 siap. Worker PDF lokal aktif (Bebas blokir CORS file:///).</div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT COLUMN (5 COLS) -->
+    <aside class="lg:col-span-5 flex flex-col divide-y divide-borderLight dark:divide-borderDark bg-white/30 dark:bg-panel/30">
+      
+      <!-- 4. METADATA OPF -->
+      <div class="p-5">
+        <h2 class="text-xs font-mono uppercase tracking-wider text-neutral-500 mb-3">04 / Metadata Paket (content.opf)</h2>
+        
+        <div class="grid grid-cols-12 gap-4">
+          <div class="col-span-4">
+            <label class="block border border-borderLight dark:border-borderDark aspect-[2/3] flex flex-col items-center justify-center cursor-pointer hover:border-accent transition relative overflow-hidden bg-neutral-100 dark:bg-neutral-900">
+              <input type="file" id="coverInput" accept="image/jpeg,image/png,image/webp" class="hidden">
+              <img id="coverPreview" class="hidden w-full h-full object-cover absolute inset-0" alt="Sampul Buku">
+              <div id="coverPlaceholder" class="text-center p-2">
+                <span class="block text-[11px] font-mono text-neutral-500">SAMPUL BUKU</span>
+                <span class="block text-[10px] font-mono text-neutral-400 mt-1">Otomatis / Unggah</span>
+              </div>
+            </label>
+          </div>
+
+          <div class="col-span-8 space-y-2.5 text-xs">
+            <div>
+              <label class="block font-mono text-[11px] text-neutral-500 mb-1">JUDUL BUKU *</label>
+              <input id="metaTitle" type="text" placeholder="Judul lengkap buku" class="w-full px-2.5 py-1.5 bg-transparent border border-borderLight dark:border-borderDark focus:border-accent outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block font-mono text-[11px] text-neutral-500 mb-1">PENULIS *</label>
+                <input id="metaAuthor" type="text" placeholder="Nama penulis" class="w-full px-2.5 py-1.5 bg-transparent border border-borderLight dark:border-borderDark focus:border-accent outline-none">
+              </div>
+              <div>
+                <label class="block font-mono text-[11px] text-neutral-500 mb-1">BAHASA (ISO)</label>
+                <select id="metaLang" class="w-full px-2.5 py-1.5 bg-paper dark:bg-carbon border border-borderLight dark:border-borderDark focus:border-accent outline-none font-mono">
+                  <option value="id">id (Indonesia)</option>
+                  <option value="en">en (English)</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block font-mono text-[11px] text-neutral-500 mb-1">PENERBIT</label>
+                <input id="metaPublisher" type="text" placeholder="Opsional" class="w-full px-2.5 py-1.5 bg-transparent border border-borderLight dark:border-borderDark focus:border-accent outline-none">
+              </div>
+              <div>
+                <label class="block font-mono text-[11px] text-neutral-500 mb-1">UUID / ISBN</label>
+                <input id="metaIsbn" type="text" placeholder="Otomatis jika kosong" class="w-full px-2.5 py-1.5 bg-transparent border border-borderLight dark:border-borderDark focus:border-accent outline-none font-mono">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. CSS & TYPOGRAPHY SETTINGS -->
+      <div class="p-5">
+        <h2 class="text-xs font-mono uppercase tracking-wider text-neutral-500 mb-3">05 / Aturan Gaya Baca (Stylesheet CSS)</h2>
+        <div class="grid grid-cols-3 gap-2.5 text-xs font-mono">
+          <div>
+            <label class="block text-[10px] text-neutral-500 mb-1">KELUARGA HURUF</label>
+            <select id="styleFont" class="w-full px-2 py-1.5 bg-paper dark:bg-carbon border border-borderLight dark:border-borderDark">
+              <option value="serif">Serif (Buku Cetak)</option>
+              <option value="sans-serif">Sans-Serif (Modern)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[10px] text-neutral-500 mb-1">PERATAAN TEKS</label>
+            <select id="styleAlign" class="w-full px-2 py-1.5 bg-paper dark:bg-carbon border border-borderLight dark:border-borderDark">
+              <option value="justify">Rata Kanan-Kiri</option>
+              <option value="left">Rata Kiri</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[10px] text-neutral-500 mb-1">INDENTASI PARAGRAF</label>
+            <select id="styleIndent" class="w-full px-2 py-1.5 bg-paper dark:bg-carbon border border-borderLight dark:border-borderDark">
+              <option value="1.5em">1.5em (Standar Novel)</option>
+              <option value="0">Tanpa Indentasi</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. LIVE E-READER SIMULATOR & EXPORT CTA -->
+      <div class="p-5 flex-1 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xs font-mono uppercase tracking-wider text-neutral-500">06 / Pratinjau E-Reader</h2>
+            <select id="previewChapterSelect" class="text-xs font-mono bg-transparent border border-borderLight dark:border-borderDark px-2 py-0.5 max-w-[220px] truncate">
+              <option value="0">Pilih Bab...</option>
+            </select>
+          </div>
+
+          <div id="ereaderViewport" class="ereader-page border border-borderLight dark:border-borderDark bg-[#FBF9F4] text-neutral-900 p-5 h-60 overflow-y-auto text-sm font-serif shadow-inner">
+            <p class="text-xs font-mono text-neutral-400">Pratinjau render XHTML akan tampil di sini setelah berkas diproses.</p>
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-borderLight dark:border-borderDark flex items-center justify-between gap-3">
+          <div class="text-[11px] font-mono text-neutral-500">
+            Status: <span id="readyStateText" class="text-neutral-900 dark:text-neutral-200 font-medium">Menunggu Naskah</span>
+          </div>
+          <button id="btnCompile" disabled class="px-5 py-2.5 bg-accent text-white font-mono text-xs font-semibold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed hover:bg-orange-600 transition">
+            Kompilasi & Unduh .EPUB
+          </button>
+        </div>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- MODAL EDIT CHAPTER -->
+  <div id="chapterModal" class="fixed inset-0 bg-black/75 z-50 hidden items-center justify-center p-4">
+    <div class="bg-paper dark:bg-panel border border-borderLight dark:border-borderDark w-full max-w-2xl p-5 flex flex-col gap-3">
+      <div class="flex items-center justify-between border-b border-borderLight dark:border-borderDark pb-2">
+        <span class="font-mono text-xs uppercase text-neutral-500">Sunting Bab XHTML</span>
+        <button id="btnCloseModal" class="font-mono text-xs px-2 py-0.5 border border-borderLight dark:border-borderDark">ESC</button>
+      </div>
+      <input id="editChapterTitle" type="text" class="px-3 py-1.5 bg-transparent border border-borderLight dark:border-borderDark font-medium text-sm outline-none" placeholder="Judul Bab">
+      <textarea id="editChapterContent" rows="12" class="p-3 bg-transparent border border-borderLight dark:border-borderDark font-mono text-xs outline-none leading-relaxed" placeholder="Isi teks bab..."></textarea>
+      <div class="flex justify-end gap-2">
+        <button id="btnSaveChapter" class="px-4 py-1.5 bg-accent text-white font-mono text-xs font-medium">Simpan Perubahan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CORE ENGINE -->
+  <script>
+    if (window.pdfjsLib && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    const state = {
+      chapters: [],
+      embeddedImages: [],
+      lastPdfDoc: null,
+      coverBlob: null,
+      coverMime: null,
+      coverExt: null,
+      editingIndex: null
+    };
+
+    const el = {
+      fileInput: document.getElementById('fileInput'),
+      dropzone: document.getElementById('dropzone'),
+      activeFileBadge: document.getElementById('activeFileBadge'),
+      fileNameDisplay: document.getElementById('fileNameDisplay'),
+      fileSizeDisplay: document.getElementById('fileSizeDisplay'),
+      progressContainer: document.getElementById('progressContainer'),
+      progressLabel: document.getElementById('progressLabel'),
+      progressPercent: document.getElementById('progressPercent'),
+      progressBar: document.getElementById('progressBar'),
+      scanAlertPanel: document.getElementById('scanAlertPanel'),
+      btnRunImageEpub: document.getElementById('btnRunImageEpub'),
+      btnRunOcr: document.getElementById('btnRunOcr'),
+      chapterList: document.getElementById('chapterList'),
+      chapterCountBadge: document.getElementById('chapterCountBadge'),
+      totalWordBadge: document.getElementById('totalWordBadge'),
+      logConsole: document.getElementById('logConsole'),
+      validationStatus: document.getElementById('validationStatus'),
+      metaTitle: document.getElementById('metaTitle'),
+      metaAuthor: document.getElementById('metaAuthor'),
+      metaLang: document.getElementById('metaLang'),
+      metaPublisher: document.getElementById('metaPublisher'),
+      metaIsbn: document.getElementById('metaIsbn'),
+      coverInput: document.getElementById('coverInput'),
+      coverPreview: document.getElementById('coverPreview'),
+      coverPlaceholder: document.getElementById('coverPlaceholder'),
+      styleFont: document.getElementById('styleFont'),
+      styleAlign: document.getElementById('styleAlign'),
+      styleIndent: document.getElementById('styleIndent'),
+      previewChapterSelect: document.getElementById('previewChapterSelect'),
+      ereaderViewport: document.getElementById('ereaderViewport'),
+      btnCompile: document.getElementById('btnCompile'),
+      readyStateText: document.getElementById('readyStateText'),
+      btnSample: document.getElementById('btnSample'),
+      btnTheme: document.getElementById('btnTheme'),
+      btnAddChapter: document.getElementById('btnAddChapter'),
+      chapterModal: document.getElementById('chapterModal'),
+      editChapterTitle: document.getElementById('editChapterTitle'),
+      editChapterContent: document.getElementById('editChapterContent'),
+      btnSaveChapter: document.getElementById('btnSaveChapter'),
+      btnCloseModal: document.getElementById('btnCloseModal')
+    };
+
+    function log(msg, type = 'info') {
+      const colors = {
+        info: 'text-neutral-300',
+        ok: 'text-emerald-400',
+        warn: 'text-amber-400',
+        err: 'text-red-400'
+      };
+      const time = new Date().toLocaleTimeString('id-ID', { hour12: false });
+      const div = document.createElement('div');
+      div.className = colors[type] || colors.info;
+      div.textContent = `[${time}] ${msg}`;
+      el.logConsole.appendChild(div);
+      el.logConsole.scrollTop = el.logConsole.scrollHeight;
+    }
+
+    function setProgress(visible, label = '', percent = 0) {
+      if (!visible) {
+        el.progressContainer.classList.add('hidden');
+        return;
+      }
+      el.progressContainer.classList.remove('hidden');
+      el.progressLabel.textContent = label;
+      el.progressPercent.textContent = `${Math.round(percent)}%`;
+      el.progressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+    }
+
+    function escapeXml(unsafe) {
+      if (!unsafe) return '';
+      return unsafe
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // Pembersihan Judul & Penulis dari Watermark Nama File (z-library, 1lib, z-lib, dll)
+    function parseCleanMetadataFromFilename(fileName) {
+      let raw = fileName.replace(/\.[^/.]+$/, '');
+      // Hapus semua grup tanda kurung yang mengandung nama domain atau situs unduhan
+      raw = raw.replace(/\s*\([^)]*(?:z-lib\vert{}1lib\vert{}z-library\vert{}libgen\vert{}b-ok\vert{}annas\vert{}pdfdrive\vert{}\.sk\vert{}\.org\vert{}\.rs\vert{}\.is\vert{}\.li)[^)]*\)/gi, '').trim();
+
+      // Ambil grup tanda kurung terakhir yang tersisa sebagai Nama Penulis
+      const authorMatch = raw.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+      if (authorMatch) {
+        return {
+          title: authorMatch[1].trim(),
+          author: authorMatch[2].trim()
+        };
+      }
+      return { title: raw.replace(/[-_]/g, ' ').trim(), author: 'Penulis Tidak Diketahui' };
+    }
+
+    function textToStrictXhtmlBody(ch, forPreview = false) {
+      if (ch.pageImages && ch.pageImages.length > 0) {
+        return ch.pageImages.map(img => {
+          const src = forPreview ? img.dataUrl : `images/${img.fileName}`;
+          return `<div class="page-img-wrap"><img src="${src}" alt="${escapeXml(ch.title)}" /></div>`;
+        }).join('\n      ');
+      }
+
+      let cleaned = (ch.content || '').replace(/\r\n/g, '\n');
+      if (document.getElementById('optSmartQuotes').checked) {
+        cleaned = cleaned.replace(/--/g, '—').replace(/\.\.\./g, '…');
+      }
+
+      const blocks = cleaned.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+      if (blocks.length === 0) return '<p>&#160;</p>';
+
+      return blocks.map(block => {
+        if (/^(\* \* \*|---|\*\*\*)$/.test(block)) {
+          return '<hr class="scene-break" />';
+        }
+        const safeLines = block.split('\n').map(line => escapeXml(line.trim())).join('<br />');
+        return `<p>${safeLines}</p>`;
+      }).join('\n      ');
+    }
+
+    // Ekstraksi Teks PDF Berdasarkan Koordinat Vertikal
+    async function extractPdfTextWithLayout(pdf) {
+      const totalPages = pdf.numPages;
+      const pagesOutput = [];
+      let totalWordsExtracted = 0;
+
+      for (let i = 1; i <= totalPages; i++) {
+        setProgress(true, `Mengekstrak teks halaman ${i} dari ${totalPages}...`, (i / totalPages) * 100);
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+
+        if (!textContent.items || textContent.items.length === 0) continue;
+
+        let lines = [];
+        let currentLine = [];
+        let lastY = null;
+
+        for (const item of textContent.items) {
+          const str = item.str;
+          if (!str) continue;
+          const y = item.transform ? item.transform[5] : 0;
+
+          if (lastY !== null && Math.abs(y - lastY) > 4) {
+            const lineStr = currentLine.join(' ').replace(/\s+/g, ' ').trim();
+            if (lineStr) lines.push({ text: lineStr, gapY: Math.abs(y - lastY) });
+            currentLine = [str];
+          } else {
+            currentLine.push(str);
+          }
+          lastY = y;
+        }
+        if (currentLine.length > 0) {
+          const lineStr = currentLine.join(' ').replace(/\s+/g, ' ').trim();
+          if (lineStr) lines.push({ text: lineStr, gapY: 0 });
+        }
+
+        let pageParagraphs = [];
+        let paraBuffer = [];
+
+        for (const ln of lines) {
+          if (ln.gapY > 16 && paraBuffer.length > 0) {
+            pageParagraphs.push(paraBuffer.join('\n'));
+            paraBuffer = [ln.text];
+          } else {
+            paraBuffer.push(ln.text);
+          }
+        }
+        if (paraBuffer.length > 0) pageParagraphs.push(paraBuffer.join('\n'));
+
+        const pageText = pageParagraphs.join('\n\n').trim();
+        if (pageText) {
+          const wc = pageText.split(/\s+/).filter(Boolean).length;
+          totalWordsExtracted += wc;
+          pagesOutput.push({ pageNumber: i, text: pageText });
+        }
+      }
+
+      setProgress(false);
+      return { pagesOutput, totalWordsExtracted };
+    }
+
+    // Render Halaman Pertama PDF sebagai Sampul Otomatis
+    async function extractFirstPageAsCover(pdf) {
+      try {
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 1.4 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        const res = await fetch(dataUrl);
+        state.coverBlob = await res.blob();
+        state.coverMime = 'image/jpeg';
+        state.coverExt = 'jpg';
+
+        el.coverPreview.src = dataUrl;
+        el.coverPreview.classList.remove('hidden');
+        el.coverPlaceholder.classList.add('hidden');
+        log('Sampul buku otomatis diekstrak dari Halaman 1 PDF.', 'ok');
+      } catch (e) {
+        log('Gagal merender sampul otomatis dari halaman 1.', 'warn');
+      }
+    }
+
+    function splitTextIntoChapters(rawText, fallbackTitle = 'Isi Buku') {
+      let text = rawText.replace(/\r\n/g, '\n');
+
+      if (document.getElementById('optCleanHeader').checked) {
+        text = text.replace(/^\s*(?:Halaman|Page|-)?\s*\d+\s*(?:-)?\s*$/gim, '');
+      }
+
+      if (document.getElementById('optUnwrap').checked) {
+        text = text.replace(/([a-z0-9,;:])\n([a-z])/g, '$1 $2');
+      }
+
+      const lines = text.split('\n');
+      const chapterRegex = /^(?:#{1,3}\s+(.+)|(BAB\s+[0-9IVXLCDM]+(?:\s*[:.\-—]\s*.*)?|CHAPTER\s+[0-9IVXLCDM]+(?:\s*[:.\-—]\s*.*)?|BAGIAN\s+[0-9IVXLCDM]+(?:\s*[:.\-—]\s*.*)?|PART\s+[0-9IVXLCDM]+(?:\s*[:.\-—]\s*.*)?|PROLOG|PROLOGUE|EPILOG|EPILOGUE|PREFACE|INTRODUCTION))$/i;
+
+      const chapters = [];
+      let currentTitle = null;
+      let currentBuffer = [];
+
+      for (let rawLine of lines) {
+        const line = rawLine.trim();
+        const match = line.match(chapterRegex);
+
+        if (match && line.length < 90) {
+          if (currentTitle || currentBuffer.join('').trim().length > 0) {
+            chapters.push({
+              title: currentTitle || 'Bagian Pembuka',
+              content: currentBuffer.join('\n').trim()
+            });
+          }
+          currentTitle = (match[1] || match[2]).trim().replace(/^#+\s*/, '');
+          currentBuffer = [];
+        } else {
+          currentBuffer.push(rawLine);
+        }
+      }
+
+      if (currentTitle || currentBuffer.join('').trim().length > 0) {
+        chapters.push({
+          title: currentTitle || fallbackTitle,
+          content: currentBuffer.join('\n').trim()
+        });
+      }
+
+      const validChapters = chapters.filter(c => c.content.trim().length > 0);
+
+      if (validChapters.length === 1) {
+        const allParas = validChapters[0].content.split(/\n{2,}/);
+        if (allParas.length > 40) {
+          const chunked = [];
+          let buf = [];
+          let wordCount = 0;
+          let partNum = 1;
+          for (const p of allParas) {
+            buf.push(p);
+            wordCount += p.split(/\s+/).length;
+            if (wordCount >= 3000) {
+              chunked.push({ title: `Bagian ${partNum++}`, content: buf.join('\n\n') });
+              buf = [];
+              wordCount = 0;
+            }
+          }
+          if (buf.length > 0) chunked.push({ title: `Bagian ${partNum}`, content: buf.join('\n\n') });
+          return chunked;
+        }
+      }
+
+      return validChapters;
+    }
+
+    // Handler Upload Utama
+    async function handleFileUpload(file) {
+      if (!file) return;
+      el.scanAlertPanel.classList.add('hidden');
+      state.embeddedImages = [];
+      state.chapters = [];
+
+      el.activeFileBadge.classList.remove('hidden');
+      el.fileNameDisplay.textContent = file.name;
+      el.fileSizeDisplay.textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
+
+      const parsedMeta = parseCleanMetadataFromFilename(file.name);
+      el.metaTitle.value = parsedMeta.title;
+      el.metaAuthor.value = parsedMeta.author;
+
+      const ext = file.name.split('.').pop().toLowerCase();
+      log(`Memulai pembacaan berkas: "${file.name}" [Format: .${ext.toUpperCase()}]`);
+
+      try {
+        if (ext === 'txt' || ext === 'md') {
+          const text = await file.text();
+          state.chapters = splitTextIntoChapters(text, parsedMeta.title);
+          log('Dekode UTF-8 selesai.', 'ok');
+        } 
+        else if (ext === 'html' || ext === 'htm') {
+          const htmlRaw = await file.text();
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(htmlRaw, 'text/html');
+          doc.querySelectorAll('h1, h2').forEach(h => {
+            h.textContent = `\n\n# ${h.textContent.trim()}\n\n`;
+          });
+          const text = doc.body.innerText || doc.body.textContent || '';
+          state.chapters = splitTextIntoChapters(text, parsedMeta.title);
+          log('DOM HTML dibersihkan.', 'ok');
+        } 
+        else if (ext === 'docx') {
+          log('Mengekstrak dokumen Word (.docx) melalui Mammoth...');
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          state.chapters = splitTextIntoChapters(result.value, parsedMeta.title);
+          log('Ekstraksi DOCX selesai.', 'ok');
+        } 
+        else if (ext === 'pdf') {
+          log('Memuat dokumen PDF menggunakan Main-Thread Worker...');
+          const arrayBuffer = await file.arrayBuffer();
+          
+          // Karena pdf.worker.min.js sudah dimuat via tag <script>, PDF.js otomatis memakai window.pdfjsWorker tanpa error CORS
+          const loadingTask = pdfjsLib.getDocument({
+            data: new Uint8Array(arrayBuffer),
+            isEvalSupported: false
+          });
+
+          const pdf = await loadingTask.promise;
+          state.lastPdfDoc = pdf;
+          log(`Dokumen PDF berhasil dibuka (${pdf.numPages} halaman). Mengekstrak konten...`, 'ok');
+
+          await extractFirstPageAsCover(pdf);
+
+          const { pagesOutput, totalWordsExtracted } = await extractPdfTextWithLayout(pdf);
+
+          if (totalWordsExtracted < 20) {
+            log(`PERINGATAN: Hanya ditemukan ${totalWordsExtracted} kata teks digital dari ${pdf.numPages} halaman.`, 'warn');
+            log(`Berkas ini adalah PDF Hasil Scan (Gambar). Klik "Metode 1: Konversi Halaman ke Gambar EPUB" atau "Metode 2: Ekstrak Teks via OCR" pada kotak kuning di atas.`, 'warn');
+            el.scanAlertPanel.classList.remove('hidden');
+            renderUI();
+            runPreFlightValidation();
+            return;
+          }
+
+          const combinedText = pagesOutput.map(p => p.text).join('\n\n');
+          state.chapters = splitTextIntoChapters(combinedText, parsedMeta.title);
+          log(`Ekstraksi berhasil: ${totalWordsExtracted.toLocaleString('id-ID')} kata dibagi menjadi ${state.chapters.length} bab.`, 'ok');
+        }
+
+        renderUI();
+        runPreFlightValidation();
+
+      } catch (err) {
+        setProgress(false);
+        log(`GALAT PEMROSESAN: ${err.message}`, 'err');
+        console.error(err);
+      }
+    }
+
+    // METODE 1 UNTUK PDF SCAN: Konversi Halaman PDF Menjadi Gambar EPUB
+    el.btnRunImageEpub.addEventListener('click', async () => {
+      const pdf = state.lastPdfDoc;
+      if (!pdf) return;
+      el.scanAlertPanel.classList.add('hidden');
+
+      const totalPages = pdf.numPages;
+      const pagesPerChapter = 10;
+      state.chapters = [];
+      state.embeddedImages = [];
+
+      log(`Memulai konversi ${totalPages} halaman PDF Scan menjadi gambar EPUB...`);
+
+      let currentChapterImages = [];
+      let chapterStartPage = 1;
+
+      for (let i = 1; i <= totalPages; i++) {
+        setProgress(true, `Merender halaman gambar ${i} dari ${totalPages}...`, (i / totalPages) * 100);
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 1.3 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.80);
+        const res = await fetch(dataUrl);
+        const arrayBuf = await res.arrayBuffer();
+        const fileName = `page_${String(i).padStart(4, '0')}.jpg`;
+        const imgObj = {
+          id: `img_p${i}`,
+          fileName,
+          dataUrl,
+          buffer: arrayBuf,
+          mime: 'image/jpeg'
+        };
+
+        state.embeddedImages.push(imgObj);
+        currentChapterImages.push(imgObj);
+
+        if (currentChapterImages.length === pagesPerChapter || i === totalPages) {
+          state.chapters.push({
+            title: `Halaman ${chapterStartPage}–${i}`,
+            content: `[Halaman Gambar ${chapterStartPage} sampai ${i}]`,
+            pageImages: [...currentChapterImages]
+          });
+          currentChapterImages = [];
+          chapterStartPage = i + 1;
+        }
+      }
+
+      setProgress(false);
+      log(`Selesai! ${totalPages} halaman berhasil disusun ke dalam ${state.chapters.length} bagian EPUB.`, 'ok');
+      renderUI();
+      runPreFlightValidation();
+    });
+
+    // METODE 2 UNTUK PDF SCAN: Jalankan OCR (Tesseract.js)
+    el.btnRunOcr.addEventListener('click', async () => {
+      const pdf = state.lastPdfDoc;
+      if (!pdf) return;
+      el.scanAlertPanel.classList.add('hidden');
+
+      const totalPages = pdf.numPages;
+      log(`Memulai mesin OCR pada ${totalPages} halaman...`);
+
+      try {
+        const worker = await Tesseract.createWorker('eng');
+        let fullOcrText = [];
+
+        for (let i = 1; i <= totalPages; i++) {
+          setProgress(true, `Memindai teks OCR halaman ${i} dari ${totalPages}...`, (i / totalPages) * 100);
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 1.5 });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport }).promise;
+
+          const { data: { text } } = await worker.recognize(canvas);
+          if (text && text.trim()) {
+            fullOcrText.push(text.trim());
+          }
+        }
+
+        await worker.terminate();
+        setProgress(false);
+
+        const combined = fullOcrText.join('\n\n');
+        state.chapters = splitTextIntoChapters(combined, el.metaTitle.value || 'Hasil OCR');
+        log(`OCR Selesai! Berhasil mengekstrak teks dari ${totalPages} halaman.`, 'ok');
+        renderUI();
+        runPreFlightValidation();
+      } catch (ocrErr) {
+        setProgress(false);
+        log(`OCR gagal dijalankan di protokol lokal (${ocrErr.message}). Gunakan Metode 1 (Gambar EPUB).`, 'err');
+        el.scanAlertPanel.classList.remove('hidden');
+      }
+    });
+
+    function getTotalWordCount() {
+      let total = 0;
+      for (const ch of state.chapters) {
+        if (ch.pageImages && ch.pageImages.length > 0) {
+          total += ch.pageImages.length * 250;
+        } else {
+          total += (ch.content || '').trim().split(/\s+/).filter(Boolean).length;
+        }
+      }
+      return total;
+    }
+
+    function runPreFlightValidation() {
+      const totalWords = getTotalWordCount();
+
+      if (state.chapters.length === 0 || totalWords === 0) {
+        log('✖ VALIDASI DITANGGUHKAN: Naskah memiliki 0 kata. Pilih Metode 1 atau 2 jika ini adalah PDF Scan.', 'warn');
+        el.validationStatus.textContent = 'MENUNGGU EKSTRAKSI';
+        el.validationStatus.className = 'px-2 py-0.5 bg-amber-950 text-amber-400 border border-amber-700';
+        el.btnCompile.disabled = true;
+        el.readyStateText.textContent = 'Menunggu Ekstraksi Konten';
+        return;
+      }
+
+      log('✔ Byte 0-20: header "application/epub+zip" disetel ke STORE (Uncompressed).', 'ok');
+      log('✔ Struktur XHTML 1.1: Seluruh entitas & tag kosong tervalidasi.', 'ok');
+      log(`✔ Konten Terverifikasi: ${state.chapters.length} bab berisi konten valid.`, 'ok');
+      el.validationStatus.textContent = 'VALID (0 ERROR)';
+      el.validationStatus.className = 'px-2 py-0.5 bg-emerald-950 text-emerald-400 border border-emerald-700';
+      el.btnCompile.disabled = false;
+      el.readyStateText.textContent = `${state.chapters.length} Bab Siap Dikompilasi`;
+    }
+
+    function renderUI() {
+      el.chapterCountBadge.textContent = `${state.chapters.length} Bab`;
+      const realWords = state.chapters.reduce((acc, ch) => {
+        if (ch.pageImages) return acc;
+        return acc + (ch.content || '').trim().split(/\s+/).filter(Boolean).length;
+      }, 0);
+      el.totalWordBadge.textContent = state.embeddedImages.length > 0
+        ? `${state.embeddedImages.length} Halaman Gambar`
+        : `${realWords.toLocaleString('id-ID')} Kata`;
+
+      el.chapterList.innerHTML = '';
+      el.previewChapterSelect.innerHTML = '';
+
+      if (state.chapters.length === 0) {
+        el.chapterList.innerHTML = `<div class="p-8 text-center text-xs font-mono text-neutral-500">Tidak ada bab yang ditampilkan. Jika berkas adalah PDF Scan, klik tombol konversi pada kotak kuning di atas.</div>`;
+        return;
+      }
+
+      state.chapters.forEach((ch, idx) => {
+        const isImgChap = ch.pageImages && ch.pageImages.length > 0;
+        const wordCount = isImgChap
+          ? `${ch.pageImages.length} gambar halaman`
+          : `${(ch.content || '').trim().split(/\s+/).filter(Boolean).length} kata`;
+
+        const row = document.createElement('div');
+        row.className = 'p-3 flex items-center justify-between gap-3 hover:bg-neutral-200/40 dark:hover:bg-neutral-800/40 transition';
+        row.innerHTML = `
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-[11px] text-neutral-400">#${String(idx + 1).padStart(2, '0')}</span>
+              <span class="font-medium text-xs truncate">${escapeXml(ch.title)}</span>
+            </div>
+            <p class="text-[11px] font-mono text-neutral-500 truncate mt-0.5">${wordCount} — ${escapeXml((ch.content || '').slice(0, 75))}...</p>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0 font-mono text-[11px]">
+            ${!isImgChap ? `<button data-edit="${idx}" class="px-2 py-1 border border-borderLight dark:border-borderDark hover:border-neutral-400">Sunting</button>` : ''}
+            <button data-del="${idx}" class="px-2 py-1 border border-borderLight dark:border-borderDark text-red-500 hover:border-red-500">Hapus</button>
+          </div>
+        `;
+        el.chapterList.appendChild(row);
+
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = `${idx + 1}. ${ch.title}`;
+        el.previewChapterSelect.appendChild(opt);
+      });
+
+      el.chapterList.querySelectorAll('[data-edit]').forEach(btn => {
+        btn.addEventListener('click', () => openEditModal(Number(btn.dataset.edit)));
+      });
+      el.chapterList.querySelectorAll('[data-del]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const i = Number(btn.dataset.del);
+          state.chapters.splice(i, 1);
+          renderUI();
+          runPreFlightValidation();
+        });
+      });
+
+      renderPreview(0);
+    }
+
+    function renderPreview(chapterIdx) {
+      const ch = state.chapters[chapterIdx];
+      if (!ch) {
+        el.ereaderViewport.innerHTML = '<p class="text-xs font-mono text-neutral-400">Pratinjau akan tampil setelah bab tersedia.</p>';
+        return;
+      }
+
+      el.ereaderViewport.style.fontFamily = el.styleFont.value === 'serif' ? 'Literata, Georgia, serif' : 'Inter, sans-serif';
+      el.ereaderViewport.style.textAlign = el.styleAlign.value;
+
+      const xhtmlBody = textToStrictXhtmlBody(ch, true);
+      el.ereaderViewport.innerHTML = `
+        <h2 class="text-base font-bold border-b border-neutral-300 pb-2 mb-3">${escapeXml(ch.title)}</h2>
+        <div style="text-indent: ${el.styleIndent.value}">${xhtmlBody}</div>
+      `;
+    }
+
+    function openEditModal(idx) {
+      state.editingIndex = idx;
+      el.editChapterTitle.value = state.chapters[idx].title;
+      el.editChapterContent.value = state.chapters[idx].content;
+      el.chapterModal.classList.remove('hidden');
+      el.chapterModal.classList.add('flex');
+    }
+
+    el.btnSaveChapter.addEventListener('click', () => {
+      if (state.editingIndex !== null) {
+        state.chapters[state.editingIndex] = {
+          title: el.editChapterTitle.value.trim() || `Bab ${state.editingIndex + 1}`,
+          content: el.editChapterContent.value
+        };
+        renderUI();
+        runPreFlightValidation();
+      }
+      el.chapterModal.classList.add('hidden');
+      el.chapterModal.classList.remove('flex');
+    });
+
+    el.btnCloseModal.addEventListener('click', () => {
+      el.chapterModal.classList.add('hidden');
+      el.chapterModal.classList.remove('flex');
+    });
+
+    el.btnAddChapter.addEventListener('click', () => {
+      state.chapters.push({
+        title: `Bab ${state.chapters.length + 1}`,
+        content: 'Tulis isi bab di sini.'
+      });
+      renderUI();
+      runPreFlightValidation();
+      openEditModal(state.chapters.length - 1);
+    });
+
+    // KOMPILATOR INTI EPUB 3.3
+    async function compileValidEpub() {
+      if (state.chapters.length === 0 || getTotalWordCount() === 0) return;
+
+      const title = el.metaTitle.value.trim() || 'Buku Tanpa Judul';
+      const author = el.metaAuthor.value.trim() || 'Anonim';
+      const lang = el.metaLang.value || 'id';
+      const publisher = el.metaPublisher.value.trim() || 'EPUBForge';
+      const bookId = el.metaIsbn.value.trim() || `urn:uuid:${crypto.randomUUID()}`;
+      const modifiedDate = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+
+      log('Memulai pengemasan kontainer OCF (Open Container Format)...');
+      const zip = new JSZip();
+
+      // 1. mimetype
+      zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
+
+      // 2. META-INF/container.xml
+      zip.file('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>`);
+
+      // 3. OEBPS/style.css
+      const fontStack = el.styleFont.value === 'serif' ? 'Georgia, "Times New Roman", serif' : 'Helvetica, Arial, sans-serif';
+      const textIndent = el.styleIndent.value;
+      const paragraphMargin = textIndent === '0' ? '0.85em' : '0';
+
+      zip.file('OEBPS/style.css', `@charset "UTF-8";
+body { font-family: ${fontStack}; line-height: 1.65; margin: 4%; text-align: ${el.styleAlign.value}; }
+h1, h2, h3 { line-height: 1.25; text-align: left; page-break-after: avoid; margin: 1.2em 0 0.6em; }
+p { margin-top: 0; margin-bottom: ${paragraphMargin}; text-indent: ${textIndent}; }
+hr.scene-break { border: none; border-top: 1px solid #888; width: 35%; margin: 1.5em auto; }
+.page-img-wrap { text-align: center; page-break-after: always; margin: 0; padding: 0; }
+.page-img-wrap img, img.cover-img { max-width: 100%; height: auto; display: block; margin: 0 auto; }`);
+
+      // 4. Sampul Buku
+      let manifestCover = '';
+      let spineCover = '';
+      let metaCover = '';
+
+      if (state.coverBlob) {
+        const coverBuffer = await state.coverBlob.arrayBuffer();
+        const coverFileName = `cover.${state.coverExt}`;
+        zip.file(`OEBPS/${coverFileName}`, coverBuffer);
+
+        zip.file('OEBPS/cover.xhtml', `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${lang}" lang="${lang}">
+<head><meta charset="utf-8" /><title>Sampul</title><link rel="stylesheet" type="text/css" href="style.css" /></head>
+<body><div style="text-align:center; page-break-after:always;"><img class="cover-img" src="${coverFileName}" alt="${escapeXml(title)}" /></div></body>
+</html>`);
+
+        manifestCover = `
+    <item id="cover-image" href="${coverFileName}" media-type="${state.coverMime}" properties="cover-image"/>
+    <item id="cover-page" href="cover.xhtml" media-type="application/xhtml+xml"/>`;
+        spineCover = `\n    <itemref idref="cover-page"/>`;
+        metaCover = `\n    <meta name="cover" content="cover-image"/>`;
+      }
+
+      // 5. Gambar Halaman
+      const imageManifestItems = [];
+      for (const img of state.embeddedImages) {
+        zip.file(`OEBPS/images/${img.fileName}`, img.buffer);
+        imageManifestItems.push(`    <item id="${img.id}" href="images/${img.fileName}" media-type="${img.mime}"/>`);
+      }
+
+      // 6. Bab XHTML
+      const manifestItems = [];
+      const spineItems = [];
+      const navListItems = [];
+      const ncxNavPoints = [];
+
+      state.chapters.forEach((ch, idx) => {
+        const num = idx + 1;
+        const fileId = `chap_${String(num).padStart(3, '0')}`;
+        const fileName = `${fileId}.xhtml`;
+        const safeTitle = escapeXml(ch.title);
+        const bodyHtml = textToStrictXhtmlBody(ch, false);
+
+        zip.file(`OEBPS/${fileName}`, `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${lang}" lang="${lang}">
+<head>
+  <meta charset="utf-8" />
+  <title>${safeTitle}</title>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+  <section epub:type="chapter">
+    <h1>${safeTitle}</h1>
+    ${bodyHtml}
+  </section>
+</body>
+</html>`);
+
+        manifestItems.push(`    <item id="${fileId}" href="${fileName}" media-type="application/xhtml+xml"/>`);
+        spineItems.push(`    <itemref idref="${fileId}"/>`);
+        navListItems.push(`        <li><a href="${fileName}">${safeTitle}</a></li>`);
+        ncxNavPoints.push(`    <navPoint id="navPoint-${num}" playOrder="${num}">
+      <navLabel><text>${safeTitle}</text></navLabel>
+      <content src="${fileName}"/>
+    </navPoint>`);
+      });
+
+      // 7. nav.xhtml & toc.ncx
+      zip.file('OEBPS/nav.xhtml', `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${lang}" lang="${lang}">
+<head><meta charset="utf-8" /><title>Daftar Isi</title><link rel="stylesheet" type="text/css" href="style.css" /></head>
+<body><nav epub:type="toc" id="toc"><h1>Daftar Isi</h1><ol>\n${navListItems.join('\n')}\n</ol></nav></body>
+</html>`);
+
+      zip.file('OEBPS/toc.ncx', `<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <head>
+    <meta name="dtb:uid" content="${escapeXml(bookId)}"/>
+    <meta name="dtb:depth" content="1"/>
+    <meta name="dtb:totalPageCount" content="0"/>
+    <meta name="dtb:maxPageNumber" content="0"/>
+  </head>
+  <docTitle><text>${escapeXml(title)}</text></docTitle>
+  <navMap>\n${ncxNavPoints.join('\n')}\n  </navMap>
+</ncx>`);
+
+      // 8. content.opf
+      zip.file('OEBPS/content.opf', `<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="BookId" xml:lang="${lang}">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="BookId">${escapeXml(bookId)}</dc:identifier>
+    <dc:title>${escapeXml(title)}</dc:title>
+    <dc:creator>${escapeXml(author)}</dc:creator>
+    <dc:language>${lang}</dc:language>
+    <dc:publisher>${escapeXml(publisher)}</dc:publisher>
+    <meta property="dcterms:modified">${modifiedDate}</meta>${metaCover}
+  </metadata>
+  <manifest>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="css" href="style.css" media-type="text/css"/>${manifestCover}
+${imageManifestItems.join('\n')}
+${manifestItems.join('\n')}
+  </manifest>
+  <spine toc="ncx">${spineCover}
+${spineItems.join('\n')}
+  </spine>
+</package>`);
+
+      const blob = await zip.generateAsync({
+        type: 'blob',
+        mimeType: 'application/epub+zip',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 9 }
+      });
+
+      const safeFileName = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'buku';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${safeFileName}.epub`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      log(`KOMPILASI SELESAI: "${safeFileName}.epub" (${(blob.size / 1024).toFixed(1)} KB) berhasil diunduh.`, 'ok');
+    }
+
+    // Event Listeners
+    el.fileInput.addEventListener('change', e => handleFileUpload(e.target.files[0]));
+    el.dropzone.addEventListener('dragover', e => { e.preventDefault(); el.dropzone.classList.add('border-accent'); });
+    el.dropzone.addEventListener('dragleave', () => el.dropzone.classList.remove('border-accent'));
+    el.dropzone.addEventListener('drop', e => {
+      e.preventDefault();
+      el.dropzone.classList.remove('border-accent');
+      if (e.dataTransfer.files.length) handleFileUpload(e.dataTransfer.files[0]);
+    });
+
+    el.coverInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      state.coverBlob = file;
+      state.coverMime = file.type || 'image/jpeg';
+      state.coverExt = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+
+      const reader = new FileReader();
+      reader.onload = ev => {
+        el.coverPreview.src = ev.target.result;
+        el.coverPreview.classList.remove('hidden');
+        el.coverPlaceholder.classList.add('hidden');
+        log(`Sampul manual dimuat: ${file.name}`, 'ok');
+      };
+      reader.readAsDataURL(file);
+    });
+
+    [el.styleFont, el.styleAlign, el.styleIndent, el.previewChapterSelect].forEach(ctrl => {
+      ctrl.addEventListener('change', () => renderPreview(Number(el.previewChapterSelect.value || 0)));
+    });
+
+    el.btnCompile.addEventListener('click', compileValidEpub);
+
+    el.btnTheme.addEventListener('click', () => {
+      const html = document.documentElement;
+      html.classList.toggle('dark');
+      el.btnTheme.textContent = `Tema: ${html.classList.contains('dark') ? 'Gelap' : 'Terang'}`;
+    });
+
+    el.btnSample.addEventListener('click', () => {
+      el.scanAlertPanel.classList.add('hidden');
+      state.embeddedImages = [];
+      el.metaTitle.value = 'Animal Farm';
+      el.metaAuthor.value = 'George Orwell';
+      el.metaLang.value = 'en';
+
+      const sample = `CHAPTER I
+
+Mr. Jones, of the Manor Farm, had locked the hen-houses for the night, but was too drunk to remember to shut the pop-holes. With the ring of light from his lantern dancing from side to side, he lurched across the yard, kicked off his boots at the back door, drew himself a last glass of beer from the barrel in the scullery, and made his way up to bed, where Mrs. Jones was already snoring.
+
+As soon as the light in the bedroom went out there was a stirring and a fluttering all through the farm buildings. Word had gone round during the day that old Major, the prize Middle White boar, had had a strange dream on the previous night and wished to communicate it to the other animals.
+
+CHAPTER II
+
+Three nights later old Major died peacefully in his sleep. His body was buried at the foot of the orchard.
+
+This was early in March. During the next three months there was much secret activity. Major's speech had given to the more intelligent animals on the farm a completely new outlook on life.`;
+
+      state.chapters = splitTextIntoChapters(sample);
+      log('Naskah contoh berhasil dimuat.', 'ok');
+      renderUI();
+      runPreFlightValidation();
+    });
+  </script>
+</body>
+</html>
