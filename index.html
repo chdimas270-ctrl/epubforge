@@ -842,7 +842,7 @@
           const badge = document.getElementById('ocrCorrectBadge');
           badge.textContent = `✦ ${total} koreksi diterapkan`;
           badge.classList.remove('hidden');
-          log(`Auto-koreksi selesai: ${result.stats.phase1} ligatur, ${result.stats.phase2} karakter, ${result.stats.phase3} kata dikembalikan.`, 'ok');
+          log(`Auto-koreksi selesai: ${result.stats.phase1} ligatur/unicode, ${result.stats.phase2} artefak karakter, ${result.stats.phase3} baris/layout dirapikan.`, 'ok');
         }
 
         state.chapters = splitTextIntoChapters(combined, el.metaTitle.value || 'Hasil OCR');
@@ -857,176 +857,74 @@
     });
 
     // ======================================================================
-    // OCR AUTO-CORRECT ENGINE
+    // OCR AUTO-CORRECT & LAYOUT ENGINE
     // ======================================================================
-    // Kamus 500 kata umum Bahasa Indonesia untuk koreksi Levenshtein
-    const OCR_ID_DICT_RAW = [
-      'yang','dan','di','dengan','itu','ini','tidak','ada','dari','ke','untuk',
-      'dalam','pada','ia','saya','kamu','kami','mereka','kita','dia','aku','kau',
-      'sudah','akan','juga','bisa','hanya','atau','oleh','karena','jadi','lebih',
-      'kalau','seperti','bukan','pun','semua','setiap','masih','belum','lagi',
-      'sama','lain','baru','besar','kecil','baik','buruk','tinggi','rendah',
-      'panjang','pendek','tua','muda','hidup','mati','kepada','tentang','antara',
-      'bahwa','apakah','mengapa','bagaimana','dimana','kapan','siapa','berapa',
-      'orang','rumah','hari','waktu','tahun','bulan','tempat','jalan','kata',
-      'mau','harus','dapat','tahu','lihat','pergi','datang','bilang','pikir',
-      'rasa','tangan','mata','kepala','hati','badan','makan','minum','tidur',
-      'berdiri','memang','sangat','sekali','sedang','pernah','jarang','selalu',
-      'kadang','sering','sekitar','hampir','cukup','terlalu','amat','begitu',
-      'saja','pula','hal','cara','jenis','macam','bentuk','bagian','benda',
-      'anak','laki','perempuan','pria','wanita','ayah','ibu','kakak','adik',
-      'suami','istri','teman','musuh','keluarga','kelompok','kota','desa',
-      'negara','dunia','bumi','langit','air','api','tanah','udara','angin',
-      'hujan','panas','dingin','gelap','terang','hitam','putih','merah','biru',
-      'hijau','kuning','pintu','jendela','atap','lantai','dinding','meja',
-      'kursi','buku','kertas','pena','pensil','nomor','huruf','angka',
-      'pertama','kedua','ketiga','terakhir','awal','akhir','lama','cepat',
-      'lambat','jauh','dekat','atas','bawah','kiri','kanan','depan','belakang',
-      'luar','tengah','sebelum','sesudah','selama','ketika','saat','masa',
-      'malam','pagi','siang','sore','besok','kemarin','sekarang','nanti',
-      'mungkin','tentu','pasti','ingin','suka','perlu','boleh','mampu','kenal',
-      'ingat','lupa','takut','senang','sedih','marah','kaget','heran','malu',
-      'sabar','berani','bijak','pintar','bodoh','kaya','miskin','sehat','sakit',
-      'lelah','kuat','lemah','berat','ringan','keras','lunak','kasar','halus',
-      'indah','jelek','jahat','benar','salah','tolong','mohon','silakan',
-      'terima','kasih','maaf','permisi','selamat','tinggal','pulang','mulai',
-      'selesai','berhenti','lanjut','terus','naik','turun','masuk','keluar',
-      'ambil','bawa','taruh','buka','tutup','bicara','diam','bertanya','jawab',
-      'cerita','tulis','baca','hitung','bayar','beli','jual','kirim','minta',
-      'cari','tunggu','bertemu','cinta','benci','hormat','bantu','rusak',
-      'buat','cipta','pilih','rasa','main','kerja','ajar','masak','bangun',
-      'duduk','berlari','jatuh','terbang','renang','tangis','tawa','teriak',
-      'bisik','napas','tumbuh','walau','meski','bahkan','justru','malah',
-      'ternyata','akhirnya','kemudian','lalu','terutama','selain','daripada',
-      'namun','tetapi','demikian','misalnya','contoh','yaitu','yakni','artinya',
-      'terhadap','mengenai','berdasarkan','sesuai','sehingga','supaya','agar',
-      'maka','bila','apabila','seandainya','seharusnya','sebaiknya','sebenarnya',
-      'sejak','sampai','hingga','banyak','sedikit','sebentar','keras','pelan',
-      'kurang','mana','apa','mengapa','siapa','kapan','dimana','berapa',
-      'melihat','mendengar','berkata','berlari','berjalan','memiliki','menuju',
-      'membuat','meminta','menjadi','merasa','berpikir','mengetahui','memahami',
-      'mencari','menemukan','menunggu','mencintai','membantu','bekerja',
-      'belajar','mengajar','mencoba','menerima','memberikan','meninggalkan',
-      'menyebut','memanggil','menggambarkan','menjelaskan','menggunakan',
-      'memulai','mengakhiri','melanjutkan','berhenti','menangis','tertawa',
-      'bergerak','berlari','melompat','terbang','berenang','bernyanyi',
-      'berbicara','berteriak','berbisik','bernapas','berdoa','berusaha',
-      'menyukai','membenci','mengingat','melupakan','mengenal','mengetahui',
-      'merasakan','memikirkan','memutuskan','memilih','menolak','menerima',
-      'membeli','menjual','membayar','mengirim','menerima','membaca','menulis',
-      'menghitung','mengukur','memasak','memakan','meminum','menggunakan',
-      'membuka','menutup','menyalakan','mematikan','menonton','mendengarkan',
-      'semoga','kiranya','agaknya','rupanya','tampaknya','kelihatannya','rasanya',
-      'sebab','akibat','hasil','tujuan','cara','usaha','upaya','langkah',
-      'proses','waktu','tempat','orang','benda','hal','masalah','solusi',
-      'pertanyaan','jawaban','cerita','kisah','sejarah','kejadian','peristiwa',
-      'kenyataan','kebenaran','kebohongan','kesalahan','keberhasilan','kegagalan',
-      'kesenangan','kesedihan','kemarahan','ketakutan','keberanian','kepercayaan',
-      'harapan','impian','kenyataan','kehidupan','kematian','persahabatan',
-      'perseteruan','keluarga','masyarakat','budaya','bangsa','negeri','tanah',
-      'langit','bintang','bulan','matahari','hujan','angin','awan','laut',
-      'sungai','gunung','hutan','padang','sawah','ladang','kebun','rumput',
-      'pohon','bunga','buah','daun','akar','batang','ranting','cabang',
-      'manusia','hewan','tumbuhan','alam','dunia','semesta','jagat','raya',
-    ];
-
-    // Bangun indeks kamus berdasarkan panjang kata untuk pencarian cepat
-    const OCR_ID_SET = new Set(OCR_ID_DICT_RAW);
-    const OCR_DICT_BY_LEN = {};
-    for (const w of OCR_ID_DICT_RAW) {
-      const l = w.length;
-      if (!OCR_DICT_BY_LEN[l]) OCR_DICT_BY_LEN[l] = [];
-      OCR_DICT_BY_LEN[l].push(w);
-    }
-
-    function levenshtein(a, b) {
-      if (a === b) return 0;
-      if (a.length === 0) return b.length;
-      if (b.length === 0) return a.length;
-      const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-      const curr = new Array(b.length + 1);
-      for (let i = 1; i <= a.length; i++) {
-        curr[0] = i;
-        for (let j = 1; j <= b.length; j++) {
-          curr[j] = a[i-1] === b[j-1]
-            ? prev[j-1]
-            : 1 + Math.min(prev[j], curr[j-1], prev[j-1]);
-        }
-        prev.splice(0, prev.length, ...curr);
-      }
-      return prev[b.length];
-    }
-
-    function suggestWordCorrection(word) {
-      // Hanya koreksi kata huruf kecil semua, panjang >= 4 (hindari nama diri)
-      if (word.length < 4 || word !== word.toLowerCase()) return word;
-      if (OCR_ID_SET.has(word)) return word;
-
-      const candidates = [
-        ...(OCR_DICT_BY_LEN[word.length - 1] || []),
-        ...(OCR_DICT_BY_LEN[word.length]     || []),
-        ...(OCR_DICT_BY_LEN[word.length + 1] || []),
-      ];
-
-      let best = null;
-      let ambiguous = false;
-      for (const dw of candidates) {
-        if (levenshtein(word, dw) === 1) {
-          if (best !== null) { ambiguous = true; break; }
-          best = dw;
-        }
-      }
-      return (best && !ambiguous) ? best : word;
-    }
 
     function applyOcrAutoCorrect(rawText) {
       let text = rawText;
       const stats = { phase1: 0, phase2: 0, phase3: 0 };
 
-      // === FASE 1: Normalisasi Ligatur & Unicode ===
-      const ligatures = [
-        ['\uFB01','fi'], ['\uFB02','fl'], ['\uFB00','ff'],
-        ['\uFB03','ffi'], ['\uFB04','ffl'], ['\uFB06','st'],
-        ['\u2019',"'"], ['\u2018',"'"], ['\u201C','"'], ['\u201D','"'],
-        ['\u00AD',''],   // soft hyphen
-        ['\u200B',''],   // zero-width space
+      // ── FASE 1: Normalisasi Ligatur & Karakter Unicode Khusus ─────────────
+      // Karakter tipografi yang sering salah di-encode oleh scanner/OCR
+      const unicodeFixes = [
+        ['\uFB01', 'fi'],  // ﬁ  ligature
+        ['\uFB02', 'fl'],  // ﬂ  ligature
+        ['\uFB00', 'ff'],  // ﬀ  ligature
+        ['\uFB03', 'ffi'], // ﬃ  ligature
+        ['\uFB04', 'ffl'], // ﬄ  ligature
+        ['\uFB06', 'st'],  // ﬆ  ligature
+        ['\u00AD', ''],    // soft hyphen (invisible, hapus)
+        ['\u200B', ''],    // zero-width space (hapus)
+        ['\u200C', ''],    // zero-width non-joiner (hapus)
+        ['\u2019', "'"],   // right single quotation mark → apostrof biasa
+        ['\u2018', "'"],   // left single quotation mark
+        ['\u201C', '"'],   // left double quotation mark
+        ['\u201D', '"'],   // right double quotation mark
+        ['\u2013', '-'],   // en dash → strip biasa
+        ['\u2014', ' - '], // em dash → spasi-strip-spasi
+        ['\u2026', '...'], // ellipsis → tiga titik biasa
       ];
-      for (const [from, to] of ligatures) {
-        const count = (text.split(from).length - 1);
-        if (count > 0) { text = text.split(from).join(to); stats.phase1 += count; }
+      for (const [from, to] of unicodeFixes) {
+        const n = text.split(from).length - 1;
+        if (n > 0) { text = text.split(from).join(to); stats.phase1 += n; }
       }
 
-      // === FASE 2: Koreksi Karakter OCR Umum ===
+      // ── FASE 2: Koreksi Artefak Karakter OCR (Language-Agnostic) ─────────
+      // Hanya pola yang secara visual PASTI salah — tidak menyentuh kata/makna.
 
-      // Angka 0 di antara huruf alfabet → o (misal: "b0la" → "bola")
+      // 2a. Angka 0 di antara huruf alfabet → huruf o
+      //     "b0la" → "bola", "pr0blem" → "problem"
       text = text.replace(/([a-zA-Z])0([a-zA-Z])/g, (_, a, b) => {
-        stats.phase2++;
-        return a + 'o' + b;
+        stats.phase2++; return a + 'o' + b;
       });
 
-      // Angka 1 di awal kata diikuti 2+ huruf kecil → l (misal: "1ari" → "lari")
+      // 2b. Angka 1 di awal kata diikuti 2+ huruf kecil → huruf l
+      //     "1ari" → "lari", "1engkap" → "lengkap"
       text = text.replace(/\b1([a-z]{2,})\b/g, (_, rest) => {
-        stats.phase2++;
-        return 'l' + rest;
+        stats.phase2++; return 'l' + rest;
       });
 
-      // Huruf kapital I di awal kata diikuti konsonan+vokal → l (OCR sering tukar l↔I)
-      text = text.replace(/\bI([bcdfghjklmnpqrstvwxyz][a-z])/g, (_, c) => {
-        stats.phase2++;
-        return 'l' + c;
+      // 2c. Huruf kapital I di awal kata, diikuti konsonan lalu huruf kecil → l
+      //     "Iaut" → "laut" (OCR sering menukar 'l' dan 'I' kapital)
+      //     AMAN: tidak menyentuh kata seperti "It", "Is", "In" (kata Inggris valid)
+      text = text.replace(/\bI([bcdfghjklmnpqrstvwxyz][a-z]{1,})\b/g, (m, rest) => {
+        stats.phase2++; return 'l' + rest;
       });
 
-      // Koreksi pola "rn" di awal kata → m (error Tesseract sangat umum)
-      // Hanya kata-kata spesifik agar tidak merusak kata valid seperti "rna" (RNA)
+      // 2d. Pola "rn" di AWAL kata → m (error Tesseract yang sangat umum)
+      //     Hanya kata-kata spesifik yang PASTI salah, agar tidak rusak
+      //     kata valid seperti "RNA", "rna", atau nama diri
       const rnFixes = {
-        'rnasa':'masa','rnata':'mata','rnau':'mau','rnau':'mau',
-        'rnereka':'mereka','rnemang':'memang','rnasih':'masih',
-        'rnelihat':'melihat','rnendapat':'mendapat','rnengapa':'mengapa',
-        'rnernang':'memang','rnenjadi':'menjadi','rnenuju':'menuju',
-        'rnembuat':'membuat','rnemiliki':'memiliki','rnelakukan':'melakukan',
-        'rnenyebut':'menyebut','rnenerima':'menerima','rnendengar':'mendengar',
-        'rnerasakan':'merasakan','rnemikirkan':'memikirkan','rnencari':'mencari',
-        'rnakan':'makan','rninum':'minum','rnenemukan':'menemukan',
+        'rnasa': 'masa', 'rnata': 'mata', 'rnau': 'mau',
+        'rnereka': 'mereka', 'rnemang': 'memang', 'rnasih': 'masih',
+        'rnelihat': 'melihat', 'rnendapat': 'mendapat', 'rnengapa': 'mengapa',
+        'rnenjadi': 'menjadi', 'rnenuju': 'menuju', 'rnembuat': 'membuat',
+        'rnemiliki': 'memiliki', 'rnelakukan': 'melakukan', 'rnakan': 'makan',
+        'rninum': 'minum', 'rnenemukan': 'menemukan', 'rnenyebut': 'menyebut',
+        'rnenerima': 'menerima', 'rnendengar': 'mendengar', 'rnencari': 'mencari',
+        'rnerasakan': 'merasakan', 'rnemikirkan': 'memikirkan',
+        'rnelanjutkan': 'melanjutkan', 'rneninggalkan': 'meninggalkan',
+        'rnemberikan': 'memberikan', 'rnenggunakan': 'menggunakan',
       };
       for (const [wrong, right] of Object.entries(rnFixes)) {
         const re = new RegExp(`\\b${wrong}\\b`, 'gi');
@@ -1037,30 +935,109 @@
         });
       }
 
-      // Spasi ganda → spasi tunggal
+      // 2e. Titik/koma menempel langsung di huruf → sisipkan spasi
+      //     "baik.Dia" → "baik. Dia" | "ya,dia" → "ya, dia"
+      text = text.replace(/([.!?])([A-Z\u00C0-\u00DC])/g, (_, p, c) => {
+        stats.phase2++; return p + ' ' + c;
+      });
+      text = text.replace(/,([a-zA-Z])/g, (_, c) => {
+        stats.phase2++; return ', ' + c;
+      });
+
+      // 2f. Spasi ganda → spasi tunggal
       text = text.replace(/ {2,}/g, ' ');
 
-      // Titik tanpa spasi sebelum huruf kapital → tambah spasi (misal: "selesai.Lalu" → "selesai. Lalu")
-      text = text.replace(/\.([A-Z])/g, (_, c) => {
-        stats.phase2++;
-        return '. ' + c;
-      });
-
-      // Koma tanpa spasi → tambah spasi (misal: "ya,itu" → "ya, itu")
-      text = text.replace(/,([a-zA-Z])/g, (_, c) => {
-        stats.phase2++;
-        return ', ' + c;
-      });
-
-      // === FASE 3: Koreksi Kata (Levenshtein vs Kamus ID) ===
-      // Hanya kata huruf kecil semua, panjang >= 4, tidak mengandung angka
-      text = text.replace(/\b[a-z]{4,}\b/g, (word) => {
-        const corrected = suggestWordCorrection(word);
-        if (corrected !== word) stats.phase3++;
-        return corrected;
-      });
+      // ── FASE 3: Perapian Layout Teks Ebook ───────────────────────────────
+      // OCR menghasilkan teks baris-per-baris. Kita rapikan menjadi paragraf
+      // yang bersih seperti ebook, tanpa mengubah kata atau kalimat.
+      text = formatOcrLayout(text, stats);
 
       return { text, stats };
+    }
+
+    function formatOcrLayout(rawText, stats) {
+      const lines = rawText.split('\n');
+      const out = [];
+
+      // Pola deteksi baris yang harus dibuang
+      const isPageNumber = (line) => /^\s*\d{1,4}\s*$/.test(line);
+      const isRunningHeader = (line) =>
+        line.trim().length > 0 && line.trim().length < 6 &&
+        /^[A-Za-z.\-]+$/.test(line.trim());
+      // Pola heading bab (baris pendek berisi indikator bab)
+      const isChapterHead = (line) =>
+        /^(BAB\s+[0-9IVXLCDM]+|CHAPTER\s+[0-9IVXLCDM]+|BAGIAN\s+[0-9IVXLCDM]+|PART\s+[0-9IVXLCDM]+|PROLOG|EPILOG|PROLOGUE|EPILOGUE|PREFACE|INTRODUCTION|#{1,3}\s)/i.test(line.trim());
+      // Apakah kalimat berakhir dengan tanda baca akhir?
+      const endsWithSentence = (line) => /[.!?…"'»)\]]\s*$/.test(line.trim());
+      // Apakah baris berakhir dengan tanda hubung (kata terpotong)?
+      const endsWithHyphen = (line) => line.trim().endsWith('-');
+
+      for (let i = 0; i < lines.length; i++) {
+        const raw = lines[i];
+        const trimmed = raw.trim();
+
+        // Buang baris kosong yang berlebihan — simpan maks 1 baris kosong
+        if (trimmed === '') {
+          if (out.length > 0 && out[out.length - 1] !== '') {
+            out.push('');
+          }
+          continue;
+        }
+
+        // Buang nomor halaman (baris yang hanya berisi angka)
+        if (isPageNumber(trimmed)) { stats.phase3++; continue; }
+
+        // Buang running header/footer yang sangat pendek (sisa header buku)
+        if (isRunningHeader(trimmed)) { stats.phase3++; continue; }
+
+        // Tangani kata terpotong di akhir baris (hyphenated line break)
+        // "mema-\nhami" → "memahami"
+        if (endsWithHyphen(trimmed) && i + 1 < lines.length) {
+          const nextTrimmed = lines[i + 1].trim();
+          if (nextTrimmed && /^[a-z]/.test(nextTrimmed)) {
+            // Gabung: buang tanda hubung, satukan dengan kata berikutnya
+            lines[i + 1] = trimmed.slice(0, -1) + nextTrimmed;
+            stats.phase3++;
+            continue; // baris berikutnya sudah dimodifikasi, proses di iterasi berikutnya
+          }
+        }
+
+        // Tentukan apakah baris ini harus digabung dengan baris SEBELUMNYA
+        // (baris sebelumnya belum berakhir kalimat → ini adalah lanjutannya)
+        if (
+          out.length > 0 &&
+          out[out.length - 1] !== '' &&              // bukan setelah baris kosong
+          !isChapterHead(trimmed) &&                  // bukan judul bab baru
+          !endsWithSentence(out[out.length - 1]) &&  // baris sebelumnya belum tuntas
+          trimmed.length > 1                          // bukan baris 1 karakter
+        ) {
+          out[out.length - 1] = out[out.length - 1].trimEnd() + ' ' + trimmed;
+          stats.phase3++;
+          continue;
+        }
+
+        out.push(trimmed);
+      }
+
+      // Pastikan dua paragraf dipisah dengan baris kosong (format ebook)
+      // Tanda kalimat baru setelah kalimat tuntas pada baris berbeda → tambah pemisah
+      const final = [];
+      for (let i = 0; i < out.length; i++) {
+        final.push(out[i]);
+        if (
+          i + 1 < out.length &&
+          out[i] !== '' &&
+          out[i + 1] !== '' &&
+          endsWithSentence(out[i]) &&
+          /^[A-Z\u00C0-\u00DC"]/.test(out[i + 1]) &&
+          !isChapterHead(out[i + 1])
+        ) {
+          // Dua baris konten berurutan yang tampak sebagai paragraf berbeda
+          final.push('');
+        }
+      }
+
+      return final.join('\n');
     }
     // ======================================================================
 
