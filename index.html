@@ -131,15 +131,23 @@
         <!-- Panel Deteksi PDF Scan -->
         <div id="scanAlertPanel" class="hidden mt-3 border border-amber-600/60 bg-amber-950/30 p-3.5 text-xs font-mono">
           <div class="text-amber-400 font-semibold mb-1">! DETEKSI PDF GAMBAR / HASIL SCAN (TANPA LAPISAN TEKS)</div>
-          <p class="text-neutral-300 text-[11px] leading-relaxed mb-3">
-            Berkas PDF ini menyimpan halaman sebagai gambar hasil scan. Pilih metode konversi di bawah agar isi buku tetap tampil utuh:
+          <p class="text-neutral-300 text-[11px] leading-relaxed mb-2.5">
+            Berkas PDF ini menyimpan halaman sebagai gambar hasil scan. Pilih bahasa naskah dan metode konversi di bawah agar teks buku diekstrak dengan presisi maksimal:
           </p>
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-neutral-400 text-[11px]">Bahasa Naskah OCR:</span>
+            <select id="ocrLangSelect" class="px-2 py-1 bg-neutral-900 border border-amber-500/80 text-amber-300 font-mono text-xs focus:outline-none">
+              <option value="ind+eng">Bahasa Indonesia + Inggris (ind+eng) [Rekomendasi]</option>
+              <option value="ind">Bahasa Indonesia Saja (ind)</option>
+              <option value="eng">English Only (eng)</option>
+            </select>
+          </div>
           <div class="flex flex-wrap gap-2">
             <button id="btnRunImageEpub" class="px-3 py-1.5 bg-accent text-white font-semibold hover:bg-orange-600 transition">
               Metode 1: Konversi Halaman ke Gambar EPUB (Cepat & 100% Presisi)
             </button>
             <button id="btnRunOcr" class="px-3 py-1.5 border border-amber-500 text-amber-300 hover:bg-amber-900/30 transition">
-              Metode 2: Ekstrak Teks via OCR (Tesseract Engine)
+              Metode 2: Ekstrak Teks via OCR Super-Ketat (Anti-Typo & Lurus)
             </button>
           </div>
         </div>
@@ -164,13 +172,29 @@
           </label>
         </div>
 
-        <!-- OCR Auto-Correct Option -->
-        <div class="mt-2 flex items-center justify-between p-2 border border-dashed border-amber-700/50 bg-amber-950/10 text-xs font-mono">
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" id="optOcrAutoCorrect" checked class="accent-accent">
-            <span class="text-amber-300">✦ Auto-Koreksi Teks OCR <span class="text-neutral-500">(Ligature + Karakter + Kosakata ID)</span></span>
-          </label>
-          <span id="ocrCorrectBadge" class="hidden px-2 py-0.5 bg-emerald-900/60 text-emerald-400 border border-emerald-700/50 text-[10px]"></span>
+        <!-- OCR Auto-Correct & Restorasi Paragraf Option -->
+        <div class="mt-2.5 p-3 border border-dashed border-amber-700/60 bg-amber-950/20 text-xs font-mono space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="flex items-center gap-2 cursor-pointer font-semibold text-amber-300">
+              <input type="checkbox" id="optOcrAutoCorrect" checked class="accent-accent">
+              <span>✦ Mesin Auto-Koreksi & Restorasi Paragraf Buku (Super Ketat)</span>
+            </label>
+            <span id="ocrCorrectBadge" class="hidden px-2 py-0.5 bg-emerald-900/60 text-emerald-400 border border-emerald-700/50 text-[10px]"></span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px] text-neutral-300">
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="optDeskew" checked class="accent-accent">
+              <span>Perata Halaman Miring (Deskew)</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="optOcrBinarize" checked class="accent-accent">
+              <span>Penjernih Kontras & Binarisasi</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="optFixWordBreaks" checked class="accent-accent">
+              <span>Sambung Kata & Hapus Header/Footer</span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -182,9 +206,14 @@
             <span id="chapterCountBadge" class="text-xs font-mono px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-800">0 Bab</span>
             <span id="totalWordBadge" class="text-xs font-mono px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-800 text-neutral-500">0 Kata</span>
           </div>
-          <button id="btnAddChapter" class="text-xs font-mono px-2.5 py-1 border border-borderLight dark:border-borderDark hover:border-neutral-400">
-            + Tambah Bab Manual
-          </button>
+          <div class="flex items-center gap-2">
+            <button id="btnAutoCorrectAll" class="text-xs font-mono px-2.5 py-1 border border-amber-600/70 text-amber-400 hover:bg-amber-950/40 transition">
+              ✦ Rapikan Semua Bab
+            </button>
+            <button id="btnAddChapter" class="text-xs font-mono px-2.5 py-1 border border-borderLight dark:border-borderDark hover:border-neutral-400">
+              + Tambah Bab Manual
+            </button>
+          </div>
         </div>
 
         <div id="chapterList" class="flex-1 overflow-y-auto border border-borderLight dark:border-borderDark divide-y divide-borderLight dark:divide-borderDark bg-white/30 dark:bg-panel/30 max-h-72">
@@ -323,8 +352,13 @@
       </div>
       <input id="editChapterTitle" type="text" class="px-3 py-1.5 bg-transparent border border-borderLight dark:border-borderDark font-medium text-sm outline-none" placeholder="Judul Bab">
       <textarea id="editChapterContent" rows="12" class="p-3 bg-transparent border border-borderLight dark:border-borderDark font-mono text-xs outline-none leading-relaxed" placeholder="Isi teks bab..."></textarea>
-      <div class="flex justify-end gap-2">
-        <button id="btnSaveChapter" class="px-4 py-1.5 bg-accent text-white font-mono text-xs font-medium">Simpan Perubahan</button>
+      <div class="flex items-center justify-between gap-2">
+        <button id="btnAutoCorrectSingle" class="px-3 py-1.5 border border-amber-600/70 text-amber-400 font-mono text-xs hover:bg-amber-950/40 transition">
+          ✦ Auto-Koreksi &amp; Rapikan Bab Ini
+        </button>
+        <div class="flex items-center gap-2">
+          <button id="btnSaveChapter" class="px-4 py-1.5 bg-accent text-white font-mono text-xs font-medium">Simpan Perubahan</button>
+        </div>
       </div>
     </div>
   </div>
@@ -356,11 +390,17 @@
       progressPercent: document.getElementById('progressPercent'),
       progressBar: document.getElementById('progressBar'),
       scanAlertPanel: document.getElementById('scanAlertPanel'),
+      ocrLangSelect: document.getElementById('ocrLangSelect'),
       btnRunImageEpub: document.getElementById('btnRunImageEpub'),
       btnRunOcr: document.getElementById('btnRunOcr'),
+      optDeskew: document.getElementById('optDeskew'),
+      optOcrBinarize: document.getElementById('optOcrBinarize'),
+      optFixWordBreaks: document.getElementById('optFixWordBreaks'),
+      ocrCorrectBadge: document.getElementById('ocrCorrectBadge'),
       chapterList: document.getElementById('chapterList'),
       chapterCountBadge: document.getElementById('chapterCountBadge'),
       totalWordBadge: document.getElementById('totalWordBadge'),
+      btnAutoCorrectAll: document.getElementById('btnAutoCorrectAll'),
       logConsole: document.getElementById('logConsole'),
       validationStatus: document.getElementById('validationStatus'),
       metaTitle: document.getElementById('metaTitle'),
@@ -384,6 +424,7 @@
       chapterModal: document.getElementById('chapterModal'),
       editChapterTitle: document.getElementById('editChapterTitle'),
       editChapterContent: document.getElementById('editChapterContent'),
+      btnAutoCorrectSingle: document.getElementById('btnAutoCorrectSingle'),
       btnSaveChapter: document.getElementById('btnSaveChapter'),
       btnCloseModal: document.getElementById('btnCloseModal')
     };
@@ -557,12 +598,19 @@
     function splitTextIntoChapters(rawText, fallbackTitle = 'Isi Buku') {
       let text = rawText.replace(/\r\n/g, '\n');
 
-      if (document.getElementById('optCleanHeader').checked) {
-        text = text.replace(/^\s*(?:Halaman|Page|-)?\s*\d+\s*(?:-)?\s*$/gim, '');
-      }
+      if (el.optOcrAutoCorrect && el.optOcrAutoCorrect.checked) {
+        text = applyStrictOcrAutoCorrect(text, {
+          lang: (el.metaLang && el.metaLang.value) || 'id',
+          fixWordBreaks: el.optFixWordBreaks ? el.optFixWordBreaks.checked : true
+        }).text;
+      } else {
+        if (document.getElementById('optCleanHeader').checked) {
+          text = text.replace(/^\s*(?:Halaman|Page|-)?\s*\d+\s*(?:-)?\s*$/gim, '');
+        }
 
-      if (document.getElementById('optUnwrap').checked) {
-        text = text.replace(/([a-z0-9,;:])\n([a-z])/g, '$1 $2');
+        if (document.getElementById('optUnwrap').checked) {
+          text = text.replace(/([a-z0-9,;:])\n([a-z])/g, '$1 $2');
+        }
       }
 
       const lines = text.split('\n');
@@ -799,30 +847,166 @@
       runPreFlightValidation();
     });
 
-    // METODE 2 UNTUK PDF SCAN: Jalankan OCR (Tesseract.js)
+    // ======================================================================
+    // PRA-PEMROSESAN CANVAS OCR (DESKEW / PERATA KEMIRINGAN & BINARISASI)
+    // ======================================================================
+
+    function detectCanvasSkewAngle(grid, width, height) {
+      let maxVariance = -1;
+      let bestAngle = 0;
+      const cosMap = {};
+      const sinMap = {};
+
+      for (let a = -5; a <= 5; a += 0.5) {
+        const rad = (a * Math.PI) / 180;
+        cosMap[a] = Math.cos(rad);
+        sinMap[a] = Math.sin(rad);
+      }
+
+      const cx = width / 2;
+      const cy = height / 2;
+      const sampleStep = 3;
+
+      for (let a = -5; a <= 5; a += 0.5) {
+        const cos = cosMap[a];
+        const sin = sinMap[a];
+        const rowSums = new Int32Array(height);
+
+        for (let y = 0; y < height; y += sampleStep) {
+          const rowOffset = y * width;
+          for (let x = 0; x < width; x += sampleStep) {
+            if (grid[rowOffset + x] === 1) {
+              const rotY = Math.round(-(x - cx) * sin + (y - cy) * cos + cy);
+              if (rotY >= 0 && rotY < height) {
+                rowSums[rotY]++;
+              }
+            }
+          }
+        }
+
+        let sum = 0, sumSq = 0, count = 0;
+        for (let i = 0; i < height; i++) {
+          const val = rowSums[i];
+          sum += val;
+          sumSq += val * val;
+          count++;
+        }
+        const variance = (sumSq / count) - Math.pow(sum / count, 2);
+        if (variance > maxVariance) {
+          maxVariance = variance;
+          bestAngle = a;
+        }
+      }
+
+      return bestAngle;
+    }
+
+    function preprocessCanvasForOcr(srcCanvas, options = {}) {
+      const width = srcCanvas.width;
+      const height = srcCanvas.height;
+      const ctx = srcCanvas.getContext('2d');
+      const imgData = ctx.getImageData(0, 0, width, height);
+      const d = imgData.data;
+
+      // 1. Hitung threshold kontras & binarisasi awal
+      let minL = 255, maxL = 0;
+      const step = Math.max(1, Math.floor((width * height) / 40000));
+      for (let i = 0; i < d.length; i += 4 * step) {
+        const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        if (lum < minL) minL = lum;
+        if (lum > maxL) maxL = lum;
+      }
+      const range = Math.max(20, maxL - minL);
+      const threshold = minL + range * 0.55;
+
+      // Buat binary grid untuk deteksi sudut miring
+      let skewAngle = 0;
+      if (options.deskew !== false) {
+        const binaryGrid = new Uint8Array(width * height);
+        for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+          const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          binaryGrid[p] = lum < threshold ? 1 : 0;
+        }
+        skewAngle = detectCanvasSkewAngle(binaryGrid, width, height);
+      }
+
+      // 2. Putar canvas jika terdeteksi miring (Deskew)
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = width;
+      outCanvas.height = height;
+      const outCtx = outCanvas.getContext('2d');
+
+      if (Math.abs(skewAngle) >= 0.3) {
+        outCtx.fillStyle = '#FFFFFF';
+        outCtx.fillRect(0, 0, width, height);
+        outCtx.save();
+        outCtx.translate(width / 2, height / 2);
+        outCtx.rotate((-skewAngle * Math.PI) / 180);
+        outCtx.drawImage(srcCanvas, -width / 2, -height / 2);
+        outCtx.restore();
+      } else {
+        outCtx.drawImage(srcCanvas, 0, 0);
+      }
+
+      // 3. Penjernihan Kontras & Binarisasi (Hapus Bayangan Lipatan & Kertas Kuning)
+      if (options.binarize !== false) {
+        const cleanData = outCtx.getImageData(0, 0, width, height);
+        const cd = cleanData.data;
+        for (let i = 0; i < cd.length; i += 4) {
+          const lum = 0.299 * cd[i] + 0.587 * cd[i + 1] + 0.114 * cd[i + 2];
+          const val = lum < threshold ? 0 : 255;
+          cd[i] = val;
+          cd[i + 1] = val;
+          cd[i + 2] = val;
+        }
+        outCtx.putImageData(cleanData, 0, 0);
+      }
+
+      return { canvas: outCanvas, skewAngle };
+    }
+
+    // METODE 2 UNTUK PDF SCAN: Jalankan OCR Super-Ketat (Tesseract.js)
     el.btnRunOcr.addEventListener('click', async () => {
       const pdf = state.lastPdfDoc;
       if (!pdf) return;
       el.scanAlertPanel.classList.add('hidden');
 
       const totalPages = pdf.numPages;
-      log(`Memulai mesin OCR pada ${totalPages} halaman...`);
+      const ocrLang = (el.ocrLangSelect && el.ocrLangSelect.value) || (el.metaLang.value === 'en' ? 'eng' : 'ind+eng');
+      const doDeskew = el.optDeskew ? el.optDeskew.checked : true;
+      const doBinarize = el.optOcrBinarize ? el.optOcrBinarize.checked : true;
+
+      log(`Memulai mesin OCR Super-Ketat pada ${totalPages} halaman [Model Bahasa: ${ocrLang}]...`);
 
       try {
-        const worker = await Tesseract.createWorker('eng');
+        log(`Menginisialisasi modul neural network Tesseract (${ocrLang})...`);
+        const worker = await Tesseract.createWorker(ocrLang);
         let fullOcrText = [];
+        let totalDeskewed = 0;
 
         for (let i = 1; i <= totalPages; i++) {
-          setProgress(true, `Memindai teks OCR halaman ${i} dari ${totalPages}...`, (i / totalPages) * 100);
+          setProgress(true, `Memindai halaman scan ${i} dari ${totalPages} (Resolusi Ultra 2.2x)...`, (i / totalPages) * 100);
           const page = await pdf.getPage(i);
-          const viewport = page.getViewport({ scale: 1.5 });
+          // Skala 2.2x untuk memastikan glif huruf kecil & tanda baca terbaca tajam
+          const viewport = page.getViewport({ scale: 2.2 });
           const canvas = document.createElement('canvas');
           canvas.width = viewport.width;
           canvas.height = viewport.height;
           const ctx = canvas.getContext('2d');
           await page.render({ canvasContext: ctx, viewport }).promise;
 
-          const { data: { text } } = await worker.recognize(canvas);
+          // Pra-pemrosesan: perata kemiringan halaman & penjernih kontras
+          const preprocessed = preprocessCanvasForOcr(canvas, {
+            deskew: doDeskew,
+            binarize: doBinarize
+          });
+
+          if (Math.abs(preprocessed.skewAngle) >= 0.3) {
+            totalDeskewed++;
+            log(`[Halaman ${i}] Sudut kemiringan ${preprocessed.skewAngle.toFixed(1)}° berhasil diluruskan secara otomatis.`, 'ok');
+          }
+
+          const { data: { text } } = await worker.recognize(preprocessed.canvas);
           if (text && text.trim()) {
             fullOcrText.push(text.trim());
           }
@@ -833,211 +1017,407 @@
 
         let combined = fullOcrText.join('\n\n');
 
-        // Terapkan auto-koreksi jika diaktifkan
-        if (document.getElementById('optOcrAutoCorrect').checked) {
-          log('Menerapkan mesin auto-koreksi teks OCR...', 'info');
-          const result = applyOcrAutoCorrect(combined);
+        // Terapkan Auto-Koreksi & Restorasi Paragraf Buku Cetak
+        if (el.optOcrAutoCorrect && el.optOcrAutoCorrect.checked) {
+          log('Menerapkan mesin auto-koreksi teks & restorasi paragraf buku (Super Ketat)...', 'info');
+          const result = applyStrictOcrAutoCorrect(combined, {
+            lang: el.metaLang.value || 'id',
+            fixWordBreaks: el.optFixWordBreaks ? el.optFixWordBreaks.checked : true
+          });
           combined = result.text;
-          const total = result.stats.phase1 + result.stats.phase2 + result.stats.phase3;
-          const badge = document.getElementById('ocrCorrectBadge');
-          badge.textContent = `✦ ${total} koreksi diterapkan`;
-          badge.classList.remove('hidden');
-          log(`Auto-koreksi selesai: ${result.stats.phase1} ligatur/unicode, ${result.stats.phase2} artefak karakter, ${result.stats.phase3} baris/layout dirapikan.`, 'ok');
+          const totalCorrections = result.stats.ligatures + result.stats.noise + result.stats.characters +
+            result.stats.vocabulary + result.stats.splitWords + result.stats.hyphenation + result.stats.layout;
+
+          el.ocrCorrectBadge.textContent = `✦ ${totalCorrections} koreksi diterapkan (${totalDeskewed} hal diluruskan)`;
+          el.ocrCorrectBadge.classList.remove('hidden');
+
+          log(`Auto-koreksi super-ketat selesai: ${result.stats.ligatures} ligatur/unicode, ${result.stats.characters} karakter/angka typo, ${result.stats.vocabulary} glif kata (rn/cl/ce), ${result.stats.splitWords} kata terbelah disambung, ${result.stats.hyphenation} kata terpotong di akhir baris disambung, ${result.stats.layout} paragraf/header dirapikan.`, 'ok');
         }
 
         state.chapters = splitTextIntoChapters(combined, el.metaTitle.value || 'Hasil OCR');
-        log(`OCR Selesai! Berhasil mengekstrak teks dari ${totalPages} halaman.`, 'ok');
+        log(`OCR Selesai! Berhasil mengekstrak dan merapikan teks dari ${totalPages} halaman.`, 'ok');
         renderUI();
         runPreFlightValidation();
       } catch (ocrErr) {
         setProgress(false);
-        log(`OCR gagal dijalankan di protokol lokal (${ocrErr.message}). Gunakan Metode 1 (Gambar EPUB).`, 'err');
+        log(`OCR gagal dijalankan (${ocrErr.message}). Gunakan Metode 1 (Gambar EPUB) jika berkas adalah pindaian murni tanpa teks.`, 'err');
         el.scanAlertPanel.classList.remove('hidden');
       }
     });
 
     // ======================================================================
-    // OCR AUTO-CORRECT & LAYOUT ENGINE
+    // MESIN AUTO-KOREKSI SUPER-KETAT & RESTORASI PARAGRAF BUKU
     // ======================================================================
 
-    function applyOcrAutoCorrect(rawText) {
+    function applyStrictOcrAutoCorrect(rawText, options = {}) {
       let text = rawText;
-      const stats = { phase1: 0, phase2: 0, phase3: 0 };
-
-      // ── FASE 1: Normalisasi Ligatur & Karakter Unicode Khusus ─────────────
-      // Karakter tipografi yang sering salah di-encode oleh scanner/OCR
-      const unicodeFixes = [
-        ['\uFB01', 'fi'],  // ﬁ  ligature
-        ['\uFB02', 'fl'],  // ﬂ  ligature
-        ['\uFB00', 'ff'],  // ﬀ  ligature
-        ['\uFB03', 'ffi'], // ﬃ  ligature
-        ['\uFB04', 'ffl'], // ﬄ  ligature
-        ['\uFB06', 'st'],  // ﬆ  ligature
-        ['\u00AD', ''],    // soft hyphen (invisible, hapus)
-        ['\u200B', ''],    // zero-width space (hapus)
-        ['\u200C', ''],    // zero-width non-joiner (hapus)
-        ['\u2019', "'"],   // right single quotation mark → apostrof biasa
-        ['\u2018', "'"],   // left single quotation mark
-        ['\u201C', '"'],   // left double quotation mark
-        ['\u201D', '"'],   // right double quotation mark
-        ['\u2013', '-'],   // en dash → strip biasa
-        ['\u2014', ' - '], // em dash → spasi-strip-spasi
-        ['\u2026', '...'], // ellipsis → tiga titik biasa
-      ];
-      for (const [from, to] of unicodeFixes) {
-        const n = text.split(from).length - 1;
-        if (n > 0) { text = text.split(from).join(to); stats.phase1 += n; }
-      }
-
-      // ── FASE 2: Koreksi Artefak Karakter OCR (Language-Agnostic) ─────────
-      // Hanya pola yang secara visual PASTI salah — tidak menyentuh kata/makna.
-
-      // 2a. Angka 0 di antara huruf alfabet → huruf o
-      //     "b0la" → "bola", "pr0blem" → "problem"
-      text = text.replace(/([a-zA-Z])0([a-zA-Z])/g, (_, a, b) => {
-        stats.phase2++; return a + 'o' + b;
-      });
-
-      // 2b. Angka 1 di awal kata diikuti 2+ huruf kecil → huruf l
-      //     "1ari" → "lari", "1engkap" → "lengkap"
-      text = text.replace(/\b1([a-z]{2,})\b/g, (_, rest) => {
-        stats.phase2++; return 'l' + rest;
-      });
-
-      // 2c. Huruf kapital I di awal kata, diikuti konsonan lalu huruf kecil → l
-      //     "Iaut" → "laut" (OCR sering menukar 'l' dan 'I' kapital)
-      //     AMAN: tidak menyentuh kata seperti "It", "Is", "In" (kata Inggris valid)
-      text = text.replace(/\bI([bcdfghjklmnpqrstvwxyz][a-z]{1,})\b/g, (m, rest) => {
-        stats.phase2++; return 'l' + rest;
-      });
-
-      // 2d. Pola "rn" di AWAL kata → m (error Tesseract yang sangat umum)
-      //     Hanya kata-kata spesifik yang PASTI salah, agar tidak rusak
-      //     kata valid seperti "RNA", "rna", atau nama diri
-      const rnFixes = {
-        'rnasa': 'masa', 'rnata': 'mata', 'rnau': 'mau',
-        'rnereka': 'mereka', 'rnemang': 'memang', 'rnasih': 'masih',
-        'rnelihat': 'melihat', 'rnendapat': 'mendapat', 'rnengapa': 'mengapa',
-        'rnenjadi': 'menjadi', 'rnenuju': 'menuju', 'rnembuat': 'membuat',
-        'rnemiliki': 'memiliki', 'rnelakukan': 'melakukan', 'rnakan': 'makan',
-        'rninum': 'minum', 'rnenemukan': 'menemukan', 'rnenyebut': 'menyebut',
-        'rnenerima': 'menerima', 'rnendengar': 'mendengar', 'rnencari': 'mencari',
-        'rnerasakan': 'merasakan', 'rnemikirkan': 'memikirkan',
-        'rnelanjutkan': 'melanjutkan', 'rneninggalkan': 'meninggalkan',
-        'rnemberikan': 'memberikan', 'rnenggunakan': 'menggunakan',
+      const lang = options.lang || 'id';
+      const stats = {
+        ligatures: 0,
+        noise: 0,
+        characters: 0,
+        splitWords: 0,
+        vocabulary: 0,
+        hyphenation: 0,
+        layout: 0
       };
-      for (const [wrong, right] of Object.entries(rnFixes)) {
-        const re = new RegExp(`\\b${wrong}\\b`, 'gi');
-        text = text.replace(re, (m) => {
-          stats.phase2++;
-          return m[0] === m[0].toUpperCase()
-            ? right[0].toUpperCase() + right.slice(1) : right;
-        });
+
+      // ── FASE 1: Normalisasi Unicode, Ligatur & Tanda Baca ─────────────
+      const unicodeFixes = [
+        ['\uFB01', 'fi'], ['\uFB02', 'fl'], ['\uFB00', 'ff'],
+        ['\uFB03', 'ffi'], ['\uFB04', 'ffl'], ['\uFB06', 'st'],
+        ['\u00AD', ''],   // soft hyphen
+        ['\u200B', ''],   // zero-width space
+        ['\u200C', ''],   // zero-width non-joiner
+        ['\uFEFF', ''],   // byte-order mark
+        ['\u00A0', ' '],  // non-breaking space
+        ['\u2019', "'"],  ['\u2018', "'"],
+        ['\u201C', '"'],  ['\u201D', '"'],
+        ['\u201E', '"'],  // German low-quote
+        ['\u00AB', '"'],  ['\u00BB', '"'], // French guillemets
+        ['\u2013', '-'],  // en dash
+        ['\u2014', '—'],  // em dash
+        ['\u2026', '...'],
+        ["''", '"'],       // double single-quotes
+        ['“', '"'], ['”', '"'], ['„', '"']
+      ];
+
+      for (const [from, to] of unicodeFixes) {
+        if (text.includes(from)) {
+          const count = text.split(from).length - 1;
+          text = text.split(from).join(to);
+          stats.ligatures += count;
+        }
       }
 
-      // 2e. Titik/koma menempel langsung di huruf → sisipkan spasi
-      //     "baik.Dia" → "baik. Dia" | "ya,dia" → "ya, dia"
+      // ── FASE 2: Pembersihan Margin Noise & Karakter Rusak Pemindai ────
+      text = text.replace(/^[|\\/]\s+/gm, () => { stats.noise++; return ''; });
+      text = text.replace(/\s+[|\\/]$/gm, () => { stats.noise++; return ''; });
+
+      // ── FASE 3: Koreksi Karakter & Angka yang Tertukar (Regex Cerdas) ─
+      // 3a. Angka 0 di antara huruf alfabet -> o ("b0la" -> "bola", "pr0blem" -> "problem")
+      text = text.replace(/([a-zA-Z])0([a-zA-Z])/g, (_, a, b) => {
+        stats.characters++; return a + 'o' + b;
+      });
+
+      // 3b. Angka 1 di awal atau tengah kata alfabet -> l ("1ari" -> "lari", "bi1ang" -> "bilang")
+      text = text.replace(/([a-zA-Z])1([a-zA-Z])/g, (_, a, b) => {
+        stats.characters++; return a + 'l' + b;
+      });
+      text = text.replace(/\b1([a-z]{2,})\b/g, (_, rest) => {
+        stats.characters++; return 'l' + rest;
+      });
+
+      // 3c. Angka 5 di dalam kata alfabet -> s ("bi5a" -> "bisa", "5aya" -> "saya")
+      text = text.replace(/([a-zA-Z])5([a-zA-Z])/g, (_, a, b) => {
+        stats.characters++; return a + 's' + b;
+      });
+      text = text.replace(/\b5([a-z]{2,})\b/g, (_, rest) => {
+        stats.characters++; return 's' + rest;
+      });
+
+      // 3d. Angka 3 di dalam kata alfabet -> e ("m3reka" -> "mereka", "b3lum" -> "belum")
+      text = text.replace(/([a-zA-Z])3([a-zA-Z])/g, (_, a, b) => {
+        stats.characters++; return a + 'e' + b;
+      });
+      text = text.replace(/\b([A-Z])3([a-z]{2,})\b/g, (_, cap, rest) => {
+        stats.characters++; return cap + 'e' + rest;
+      });
+
+      // 3e. Angka 8 di awal kata diikuti huruf kecil -> B ("8uku" -> "Buku", "8aik" -> "Baik")
+      text = text.replace(/\b8([a-z]{3,})\b/g, (_, rest) => {
+        stats.characters++; return 'B' + rest;
+      });
+
+      // 3f. Tanda seru (!) di awal kata sebelum huruf -> I ("!tu" -> "Itu", "!bu" -> "Ibu", "!ni" -> "Ini")
+      text = text.replace(/(^|[-.,;!?—"'\s])!([a-zA-Z]{1,})\b/g, (m, pfx, rest) => {
+        stats.characters++; return pfx + 'I' + rest;
+      });
+
+      // 3g. Huruf kapital I di awal kata diikuti konsonan lalu huruf kecil -> l ("Iaut" -> "laut", "Iihat" -> "lihat")
+      text = text.replace(/\bI([bcdfghjklmnpqrstvwxyz][a-z]{1,})\b/g, (m, rest) => {
+        stats.characters++; return 'l' + rest;
+      });
+
+      // 3h. Double v (vv) -> w ("vvaktu" -> "waktu", "vvajah" -> "wajah", "vvhat" -> "what")
+      text = text.replace(/\bvv([a-z]+)\b/gi, (m, rest) => {
+        stats.characters++;
+        const isCap = m[0] === m[0].toUpperCase();
+        return (isCap ? 'W' : 'w') + rest;
+      });
+
+      // 3i. Kata ulang dengan tanda hubung rusak: "tiba~tiba", "tiba_tiba", "tiba=tiba" -> "tiba-tiba"
+      text = text.replace(/\b([a-zA-Z]{3,})[~_=\. ]{1,2}(\1)\b/gi, (m, w1, w2) => {
+        stats.characters++; return `${w1}-${w2}`;
+      });
+
+      // ── FASE 4: Koreksi Glif OCR Spesifik Bahasa (rn -> m, cl -> d, c -> e) ─
+      if (lang === 'id' || lang === 'ind' || lang === 'ind+eng') {
+        // 4a. Awalan Verba Aktif Indonesia: rnem-, rnen-, rneng-, rney-, rner- -> mem-, men-, meng-, meny-, mer-
+        text = text.replace(/\brne(m|n|ng|y|r)([a-z]+)\b/gi, (m, pfx, rest) => {
+          stats.vocabulary++;
+          const isCap = m[0] === m[0].toUpperCase();
+          const newPfx = isCap ? ('M' + 'e' + pfx) : ('me' + pfx);
+          return newPfx + rest;
+        });
+
+        // 4b. Kata "rn" umum Bahasa Indonesia
+        const idRnMap = {
+          'rnasa': 'masa', 'rnata': 'mata', 'rnau': 'mau', 'rnereka': 'mereka',
+          'rnemang': 'memang', 'rnasih': 'masih', 'rnakan': 'makan', 'rninum': 'minum',
+          'rnumah': 'rumah', 'karnu': 'kamu', 'larna': 'lama', 'sarna': 'sama',
+          'narna': 'nama', 'rnalarn': 'malam', 'utarna': 'utama', 'selarnat': 'selamat',
+          'selarna': 'selama', 'ternan': 'teman', 'zarnan': 'zaman', 'karni': 'kami',
+          'burni': 'bumi', 'paharn': 'paham', 'dalarn': 'dalam', 'sernua': 'semua',
+          'sernakin': 'semakin', 'sernentara': 'sementara', 'rnodal': 'modal',
+          'rnoral': 'moral', 'rnaju': 'maju', 'rnaut': 'maut', 'rnasuk': 'masuk',
+          'rnalu': 'malu', 'rnampu': 'mampu', 'rniskin': 'miskin', 'rnuda': 'muda',
+          'rnulia': 'mulia', 'rnulut': 'mulut', 'rnurni': 'murni', 'rnanusia': 'manusia',
+          'rnakna': 'makna', 'rnusim': 'musim', 'rnurid': 'murid', 'rnusuh': 'musuh',
+          'belurn': 'belum', 'perturnbuhan': 'pertumbuhan', 'perternuan': 'pertemuan',
+          'sernpurna': 'sempurna', 'rnerah': 'merah', 'rnelawan': 'melawan',
+          'rnenang': 'menang', 'rnimpi': 'mimpi', 'rnelalui': 'melalui'
+        };
+        for (const [wrong, right] of Object.entries(idRnMap)) {
+          const re = new RegExp(`\\b${wrong}\\b`, 'gi');
+          text = text.replace(re, (m) => {
+            stats.vocabulary++;
+            return m[0] === m[0].toUpperCase() ? right[0].toUpperCase() + right.slice(1) : right;
+          });
+        }
+
+        // 4c. Pola "cl" -> "d" pada Bahasa Indonesia
+        const idClMap = {
+          'clasar': 'dasar', 'clari': 'dari', 'clalam': 'dalam', 'clengan': 'dengan',
+          'clia': 'dia', 'clepan': 'depan', 'clunia': 'dunia', 'clapat': 'dapat',
+          'clua': 'dua', 'cluduk': 'duduk', 'cliri': 'diri', 'clatang': 'datang',
+          'clarah': 'darah', 'clekat': 'dekat', 'clinding': 'dinding', 'cletik': 'detik',
+          'clagang': 'dagang', 'clana': 'dana', 'clamai': 'damai', 'clan': 'dan',
+          'clibawa': 'dibawa', 'cliberi': 'diberi', 'clibuat': 'dibuat', 'clikata': 'dikata'
+        };
+        for (const [wrong, right] of Object.entries(idClMap)) {
+          const re = new RegExp(`\\b${wrong}\\b`, 'gi');
+          text = text.replace(re, (m) => {
+            stats.vocabulary++;
+            return m[0] === m[0].toUpperCase() ? right[0].toUpperCase() + right.slice(1) : right;
+          });
+        }
+
+        // 4d. Pola "c" -> "e" akibat rusaknya palang tengah huruf e
+        const idCeMap = {
+          'bcrpikir': 'berpikir', 'bcrkata': 'berkata', 'bcrjalan': 'berjalan',
+          'tcrsenyum': 'tersenyum', 'kctika': 'ketika', 'sctelah': 'setelah',
+          'scbelum': 'sebelum', 'scorang': 'seorang', 'scsuatu': 'sesuatu',
+          'mcnjadi': 'menjadi', 'mclihat': 'melihat', 'mclakukan': 'melakukan',
+          'kcmudian': 'kemudian', 'tcrsebut': 'tersebut', 'sckali': 'sekali',
+          'mcmbuat': 'membuat', 'mcmiliki': 'memiliki', 'mcmpunyai': 'mempunyai',
+          'bckcrja': 'bekerja', 'bclajar': 'belajar', 'mcncrima': 'menerima'
+        };
+        for (const [wrong, right] of Object.entries(idCeMap)) {
+          const re = new RegExp(`\\b${wrong}\\b`, 'gi');
+          text = text.replace(re, (m) => {
+            stats.vocabulary++;
+            return m[0] === m[0].toUpperCase() ? right[0].toUpperCase() + right.slice(1) : right;
+          });
+        }
+
+        // 4e. Kata Terbelah / Spasi Palsu OCR Bahasa Indonesia
+        const idSplitWords = [
+          ['me reka', 'mereka'], ['se bagai', 'sebagai'], ['de ngan', 'dengan'],
+          ['un tuk', 'untuk'], ['da lam', 'dalam'], ['ka rena', 'karena'],
+          ['se perti', 'seperti'], ['ke pada', 'kepada'], ['te tapi', 'tetapi'],
+          ['ha nya', 'hanya'], ['su dah', 'sudah'], ['bi sa', 'bisa'],
+          ['ti dak', 'tidak'], ['se dang', 'sedang'], ['a kan', 'akan'],
+          ['ter sebut', 'tersebut'], ['be berapa', 'beberapa'], ['se suai', 'sesuai'],
+          ['se belum', 'sebelum'], ['se telah', 'setelah'], ['se suatu', 'sesuatu'],
+          ['se hingga', 'sehingga'], ['ba gaimana', 'bagaimana'], ['se karang', 'sekarang'],
+          ['se mua', 'semua'], ['se makin', 'semakin'], ['me mang', 'memang'],
+          ['men jadi', 'menjadi'], ['per nah', 'pernah'], ['ba nyak', 'banyak'],
+          ['se lalu', 'selalu'], ['ter lalu', 'terlalu'], ['mu dah', 'mudah'],
+          ['ma salah', 'masalah'], ['se orang', 'seorang'], ['su atu', 'suatu'],
+          ['se gigih', 'segigih'], ['se buah', 'sebuah'], ['se gala', 'segala'],
+          ['per tama', 'pertama'], ['ber sama', 'bersama'], ['ter baik', 'terbaik'],
+          ['ke hidupan', 'kehidupan'], ['pen didikan', 'pendidikan']
+        ];
+        for (const [wrong, right] of idSplitWords) {
+          const re = new RegExp(`\\b${wrong}\\b`, 'gi');
+          text = text.replace(re, (m) => {
+            stats.splitWords++;
+            return m[0] === m[0].toUpperCase() ? right[0].toUpperCase() + right.slice(1) : right;
+          });
+        }
+      }
+
+      // ── Kata OCR Bahasa Inggris ──────────────────────────────────────────
+      if (lang === 'en' || lang === 'ind+eng') {
+        const enRnMap = {
+          'rnan': 'man', 'rnen': 'men', 'rnore': 'more', 'rnust': 'must',
+          'rnany': 'many', 'rnuch': 'much', 'rnake': 'make', 'rnade': 'made',
+          'tirne': 'time', 'sarne': 'same', 'norne': 'name', 'horne': 'home',
+          'corne': 'come', 'sorne': 'some', 'thern': 'them', 'hirn': 'him',
+          'rny': 'my', 'rne': 'me', 'rnind': 'mind', 'rnatter': 'matter',
+          'rnove': 'move', 'rnoment': 'moment', 'rnight': 'might',
+          'rnother': 'mother', 'rnorning': 'morning'
+        };
+        for (const [wrong, right] of Object.entries(enRnMap)) {
+          const re = new RegExp(`\\b${wrong}\\b`, 'gi');
+          text = text.replace(re, (m) => {
+            stats.vocabulary++;
+            return m[0] === m[0].toUpperCase() ? right[0].toUpperCase() + right.slice(1) : right;
+          });
+        }
+
+        const enSplitWords = [
+          ['th e', 'the'], ['w ith', 'with'], ['th at', 'that'], ['th is', 'this'],
+          ['wh ich', 'which'], ['b ecause', 'because'], ['b etween', 'between'],
+          ['th rough', 'through'], ['sh ould', 'should'], ['w ould', 'would'],
+          ['c ould', 'could'], ['a nother', 'another'], ['b efore', 'before']
+        ];
+        for (const [wrong, right] of enSplitWords) {
+          const re = new RegExp(`\\b${wrong}\\b`, 'gi');
+          text = text.replace(re, (m) => {
+            stats.splitWords++;
+            return m[0] === m[0].toUpperCase() ? right[0].toUpperCase() + right.slice(1) : right;
+          });
+        }
+      }
+
+      // ── FASE 5: Normalisasi Spasi Sekitar Tanda Baca ──────────────────────
       text = text.replace(/([.!?])([A-Z\u00C0-\u00DC])/g, (_, p, c) => {
-        stats.phase2++; return p + ' ' + c;
+        stats.characters++; return p + ' ' + c;
       });
       text = text.replace(/,([a-zA-Z])/g, (_, c) => {
-        stats.phase2++; return ', ' + c;
+        stats.characters++; return ', ' + c;
       });
+      text = text.replace(/([:;])([a-zA-Z])/g, (_, p, c) => {
+        stats.characters++; return p + ' ' + c;
+      });
+      text = text.replace(/\s+([.,;:!?])/g, '$1');
+      text = text.replace(/[ \t]{2,}/g, ' ');
 
-      // 2f. Spasi ganda → spasi tunggal
-      text = text.replace(/ {2,}/g, ' ');
-
-      // ── FASE 3: Perapian Layout Teks Ebook ───────────────────────────────
-      // OCR menghasilkan teks baris-per-baris. Kita rapikan menjadi paragraf
-      // yang bersih seperti ebook, tanpa mengubah kata atau kalimat.
-      text = formatOcrLayout(text, stats);
+      // ── FASE 6: Restorasi Paragraf Standar Buku Cetak ─────────────────────
+      text = formatBookParagraphs(text, stats, options);
 
       return { text, stats };
     }
 
-    function formatOcrLayout(rawText, stats) {
+    function formatBookParagraphs(rawText, stats, options = {}) {
       const lines = rawText.split('\n');
-      const out = [];
+      const cleanedLines = [];
 
-      // Pola deteksi baris yang harus dibuang
-      const isPageNumber = (line) => /^\s*\d{1,4}\s*$/.test(line);
+      const isPageNumber = (line) => /^\s*(?:Halaman|Page|Bab|Chapter|-|—)?\s*\d{1,4}\s*(?:-|—)?\s*$/i.test(line);
       const isRunningHeader = (line) =>
-        line.trim().length > 0 && line.trim().length < 6 &&
-        /^[A-Za-z.\-]+$/.test(line.trim());
-      // Pola heading bab (baris pendek berisi indikator bab)
-      const isChapterHead = (line) =>
-        /^(BAB\s+[0-9IVXLCDM]+|CHAPTER\s+[0-9IVXLCDM]+|BAGIAN\s+[0-9IVXLCDM]+|PART\s+[0-9IVXLCDM]+|PROLOG|EPILOG|PROLOGUE|EPILOGUE|PREFACE|INTRODUCTION|#{1,3}\s)/i.test(line.trim());
-      // Apakah kalimat berakhir dengan tanda baca akhir?
-      const endsWithSentence = (line) => /[.!?…"'»)\]]\s*$/.test(line.trim());
-      // Apakah baris berakhir dengan tanda hubung (kata terpotong)?
-      const endsWithHyphen = (line) => line.trim().endsWith('-');
+        /^\s*\d{1,4}\s*\|\s*.+$/i.test(line) ||
+        /^\s*.+\|\s*\d{1,4}\s*$/i.test(line) ||
+        /^\s*(?:www\.[a-z0-9\-]+\.[a-z]+|z-lib|libgen|pdfdrive)\b/i.test(line) ||
+        (line.length < 5 && /^[A-Z.\-]+$/.test(line));
+
+      const isSceneBreak = (line) => /^\s*(\* \* \*|\*\*\*|---|\-\-\-|\u2022 \u2022 \u2022|~ ~ ~)\s*$/.test(line);
+      const isDialogue = (line) => /^\s*(?:—|–|- |"|“|«)\s*/.test(line);
+      const isHeading = (line) => /^(?:BAB\s+[0-9IVXLCDM]+|CHAPTER\s+[0-9IVXLCDM]+|BAGIAN\s+[0-9IVXLCDM]+|PART\s+[0-9IVXLCDM]+|PROLOG|EPILOG|PROLOGUE|EPILOGUE|PREFACE|INTRODUCTION|#{1,3}\s)/i.test(line);
+      const endsWithSentence = (line) => /[.!?…"'»)\]]\s*$/.test(line);
+      const endsWithHyphen = (line) => line.endsWith('-');
 
       for (let i = 0; i < lines.length; i++) {
         const raw = lines[i];
         const trimmed = raw.trim();
 
-        // Buang baris kosong yang berlebihan — simpan maks 1 baris kosong
-        if (trimmed === '') {
-          if (out.length > 0 && out[out.length - 1] !== '') {
-            out.push('');
+        if (!trimmed) {
+          if (cleanedLines.length > 0 && cleanedLines[cleanedLines.length - 1] !== '') {
+            cleanedLines.push('');
           }
           continue;
         }
 
-        // Buang nomor halaman (baris yang hanya berisi angka)
-        if (isPageNumber(trimmed)) { stats.phase3++; continue; }
+        if (isPageNumber(trimmed)) { stats.layout++; continue; }
+        if (isRunningHeader(trimmed)) { stats.layout++; continue; }
 
-        // Buang running header/footer yang sangat pendek (sisa header buku)
-        if (isRunningHeader(trimmed)) { stats.phase3++; continue; }
+        if (isSceneBreak(trimmed)) {
+          if (cleanedLines.length > 0 && cleanedLines[cleanedLines.length - 1] !== '') cleanedLines.push('');
+          cleanedLines.push('* * *');
+          cleanedLines.push('');
+          continue;
+        }
 
-        // Tangani kata terpotong di akhir baris (hyphenated line break)
-        // "mema-\nhami" → "memahami"
+        // Penanganan kata yang terpotong di akhir baris (Hyphenation unwrapping)
         if (endsWithHyphen(trimmed) && i + 1 < lines.length) {
           const nextTrimmed = lines[i + 1].trim();
           if (nextTrimmed && /^[a-z]/.test(nextTrimmed)) {
-            // Gabung: buang tanda hubung, satukan dengan kata berikutnya
-            lines[i + 1] = trimmed.slice(0, -1) + nextTrimmed;
-            stats.phase3++;
-            continue; // baris berikutnya sudah dimodifikasi, proses di iterasi berikutnya
+            const wordBase = trimmed.slice(0, -1);
+            if (wordBase.toLowerCase() === nextTrimmed.toLowerCase()) {
+              lines[i + 1] = `${wordBase}-${nextTrimmed}`;
+            } else {
+              lines[i + 1] = wordBase + nextTrimmed;
+            }
+            stats.hyphenation++;
+            continue;
           }
         }
 
-        // Tentukan apakah baris ini harus digabung dengan baris SEBELUMNYA
-        // (baris sebelumnya belum berakhir kalimat → ini adalah lanjutannya)
-        if (
-          out.length > 0 &&
-          out[out.length - 1] !== '' &&              // bukan setelah baris kosong
-          !isChapterHead(trimmed) &&                  // bukan judul bab baru
-          !endsWithSentence(out[out.length - 1]) &&  // baris sebelumnya belum tuntas
-          trimmed.length > 1                          // bukan baris 1 karakter
-        ) {
-          out[out.length - 1] = out[out.length - 1].trimEnd() + ' ' + trimmed;
-          stats.phase3++;
+        cleanedLines.push(trimmed);
+      }
+
+      // Unwrapping baris menjadi paragraf buku yang rapi
+      const paragraphs = [];
+      let currentPara = [];
+
+      for (let i = 0; i < cleanedLines.length; i++) {
+        const line = cleanedLines[i];
+
+        if (line === '') {
+          if (currentPara.length > 0) {
+            paragraphs.push(currentPara.join(' '));
+            currentPara = [];
+          }
           continue;
         }
 
-        out.push(trimmed);
-      }
-
-      // Pastikan dua paragraf dipisah dengan baris kosong (format ebook)
-      // Tanda kalimat baru setelah kalimat tuntas pada baris berbeda → tambah pemisah
-      const final = [];
-      for (let i = 0; i < out.length; i++) {
-        final.push(out[i]);
-        if (
-          i + 1 < out.length &&
-          out[i] !== '' &&
-          out[i + 1] !== '' &&
-          endsWithSentence(out[i]) &&
-          /^[A-Z\u00C0-\u00DC"]/.test(out[i + 1]) &&
-          !isChapterHead(out[i + 1])
-        ) {
-          // Dua baris konten berurutan yang tampak sebagai paragraf berbeda
-          final.push('');
+        if (isHeading(line) || line === '* * *') {
+          if (currentPara.length > 0) {
+            paragraphs.push(currentPara.join(' '));
+            currentPara = [];
+          }
+          paragraphs.push(line);
+          continue;
         }
+
+        // Dialog baru selalu menjadi paragraf tersendiri
+        if (isDialogue(line)) {
+          if (currentPara.length > 0) {
+            paragraphs.push(currentPara.join(' '));
+            currentPara = [];
+          }
+          currentPara.push(line);
+          continue;
+        }
+
+        // Cek kelanjutan kalimat dalam paragraf yang sama
+        if (currentPara.length > 0) {
+          const prevLine = currentPara[currentPara.length - 1];
+          const prevEndsSentence = endsWithSentence(prevLine);
+          const isShortEnding = prevLine.length < 42;
+          const nextStartsLower = /^[a-z]/.test(line);
+          const prevEndsComma = /[,;:]\s*$/.test(prevLine);
+
+          if (!prevEndsSentence || nextStartsLower || prevEndsComma || !isShortEnding) {
+            currentPara.push(line);
+            stats.layout++;
+            continue;
+          }
+        }
+
+        if (currentPara.length > 0) {
+          paragraphs.push(currentPara.join(' '));
+          currentPara = [];
+        }
+        currentPara.push(line);
       }
 
-      return final.join('\n');
+      if (currentPara.length > 0) {
+        paragraphs.push(currentPara.join(' '));
+      }
+
+      return paragraphs.join('\n\n');
     }
     // ======================================================================
 
@@ -1422,6 +1802,69 @@ This was early in March. During the next three months there was much secret acti
       renderUI();
       runPreFlightValidation();
     });
+
+    // Sinkronisasi Bahasa Naskah dengan Bahasa OCR
+    if (el.metaLang && el.ocrLangSelect) {
+      el.metaLang.addEventListener('change', () => {
+        el.ocrLangSelect.value = el.metaLang.value === 'en' ? 'eng' : 'ind+eng';
+        log(`Bahasa naskah diubah ke [${el.metaLang.value.toUpperCase()}]. Model OCR disinkronkan ke: ${el.ocrLangSelect.value}.`, 'info');
+      });
+    }
+
+    // Tombol: Rapikan & Auto-Koreksi Semua Bab (Super-Ketat)
+    if (el.btnAutoCorrectAll) {
+      el.btnAutoCorrectAll.addEventListener('click', () => {
+        if (!state.chapters || state.chapters.length === 0) {
+          log('Belum ada bab yang dimuat untuk dirapikan.', 'warn');
+          return;
+        }
+
+        let totalFixed = 0;
+        const lang = (el.metaLang && el.metaLang.value) || 'id';
+        log(`Menjalankan auto-koreksi super-ketat & perapian tata letak buku pada ${state.chapters.length} bab...`, 'info');
+
+        state.chapters.forEach((ch, idx) => {
+          if (ch.content && (!ch.pageImages || ch.pageImages.length === 0)) {
+            const res = applyStrictOcrAutoCorrect(ch.content, {
+              lang,
+              fixWordBreaks: el.optFixWordBreaks ? el.optFixWordBreaks.checked : true
+            });
+            ch.content = res.text;
+            const count = res.stats.ligatures + res.stats.noise + res.stats.characters +
+              res.stats.vocabulary + res.stats.splitWords + res.stats.hyphenation + res.stats.layout;
+            totalFixed += count;
+          }
+        });
+
+        if (el.ocrCorrectBadge) {
+          el.ocrCorrectBadge.textContent = `✦ ${totalFixed} koreksi diterapkan`;
+          el.ocrCorrectBadge.classList.remove('hidden');
+        }
+
+        log(`Selesai! Berhasil merapikan seluruh bab: ${totalFixed} perbaikan glif, kata typo, dan susunan paragraf buku diterapkan.`, 'ok');
+        renderUI();
+        runPreFlightValidation();
+      });
+    }
+
+    // Tombol di dalam Modal: Auto-Koreksi Bab Ini
+    if (el.btnAutoCorrectSingle) {
+      el.btnAutoCorrectSingle.addEventListener('click', () => {
+        const raw = el.editChapterContent.value;
+        if (!raw || !raw.trim()) return;
+
+        const lang = (el.metaLang && el.metaLang.value) || 'id';
+        const res = applyStrictOcrAutoCorrect(raw, {
+          lang,
+          fixWordBreaks: el.optFixWordBreaks ? el.optFixWordBreaks.checked : true
+        });
+        el.editChapterContent.value = res.text;
+
+        const count = res.stats.ligatures + res.stats.noise + res.stats.characters +
+          res.stats.vocabulary + res.stats.splitWords + res.stats.hyphenation + res.stats.layout;
+        log(`Bab "${el.editChapterTitle.value}" berhasil dirapikan: ${count} perbaikan diterapkan secara instan.`, 'ok');
+      });
+    }
   </script>
 </body>
 </html>
