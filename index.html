@@ -684,6 +684,40 @@
           }
 
           const combinedText = pagesOutput.map(p => p.text).join('\n\n');
+
+          // --- DETEKSI TEKS RUSAK / CUSTOM FONT ENCODING (Z-Library, DRM, dll) ---
+          // Jika PDF menggunakan custom encoding font, PDF.js menghasilkan karakter acak
+          // yang terulang-ulang (misal: "nbook nbook nbook"). Deteksi ini mencegah
+          // buku dengan teks rusak lolos ke proses kompilasi.
+          function isGarbledText(text) {
+            const words = text.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 0);
+            if (words.length < 30) return false;
+
+            // Heuristik 1: Jika kata teratas mengisi >55% dari total kata → teks berulang/rusak
+            const freq = {};
+            for (const w of words) freq[w] = (freq[w] || 0) + 1;
+            const topCount = Object.values(freq).sort((a, b) => b - a).slice(0, 5).reduce((a, b) => a + b, 0);
+            if (topCount / words.length > 0.55) return true;
+
+            // Heuristik 2: Jika >75% kata memiliki panjang ≤4 huruf → kemungkinan karakter rusak
+            const shortWords = words.filter(w => w.length <= 4).length;
+            if (shortWords / words.length > 0.75) return true;
+
+            return false;
+          }
+
+          if (isGarbledText(combinedText)) {
+            log(`PERINGATAN: Teks yang diekstrak tampak rusak/tidak terbaca. PDF ini kemungkinan menggunakan enkoding font kustom (umum pada berkas z-library, libgen, dll).`, 'warn');
+            log(`Gunakan "Metode 2: Ekstrak Teks via OCR" agar teks buku dapat dibaca dengan benar.`, 'warn');
+            el.scanAlertPanel.classList.remove('hidden');
+            // Ubah label tombol OCR agar lebih spesifik
+            el.btnRunOcr.textContent = 'Metode 2: Ekstrak Teks via OCR (Direkomendasikan untuk PDF ini)';
+            renderUI();
+            runPreFlightValidation();
+            return;
+          }
+          // -----------------------------------------------------------------
+
           state.chapters = splitTextIntoChapters(combinedText, parsedMeta.title);
           log(`Ekstraksi berhasil: ${totalWordsExtracted.toLocaleString('id-ID')} kata dibagi menjadi ${state.chapters.length} bab.`, 'ok');
         }
