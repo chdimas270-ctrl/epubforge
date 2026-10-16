@@ -181,7 +181,7 @@
             </label>
             <span id="ocrCorrectBadge" class="hidden px-2 py-0.5 bg-emerald-900/60 text-emerald-400 border border-emerald-700/50 text-[10px]"></span>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px] text-neutral-300">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 pt-1 text-[11px] text-neutral-300">
             <label class="flex items-center gap-1.5 cursor-pointer">
               <input type="checkbox" id="optDeskew" checked class="accent-accent">
               <span>Perata Halaman Miring (Deskew)</span>
@@ -193,6 +193,10 @@
             <label class="flex items-center gap-1.5 cursor-pointer">
               <input type="checkbox" id="optFixWordBreaks" checked class="accent-accent">
               <span>Sambung Kata & Hapus Header/Footer</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="optSkipFrontMatter" checked class="accent-accent">
+              <span class="text-amber-300 font-medium">Langsung ke Cerita (Lewati Sampul/KDT)</span>
             </label>
           </div>
         </div>
@@ -396,6 +400,7 @@
       optDeskew: document.getElementById('optDeskew'),
       optOcrBinarize: document.getElementById('optOcrBinarize'),
       optFixWordBreaks: document.getElementById('optFixWordBreaks'),
+      optSkipFrontMatter: document.getElementById('optSkipFrontMatter'),
       ocrCorrectBadge: document.getElementById('ocrCorrectBadge'),
       chapterList: document.getElementById('chapterList'),
       chapterCountBadge: document.getElementById('chapterCountBadge'),
@@ -503,7 +508,14 @@
         if (/^(\* \* \*|---|\*\*\*)$/.test(block)) {
           return '<hr class="scene-break" />';
         }
-        const safeLines = block.split('\n').map(line => escapeXml(line.trim())).join('<br />');
+        const safeLines = block.split('\n').map(line => {
+          let escaped = escapeXml(line.trim());
+          return escaped
+            .replace(/&lt;i&gt;/g, '<i>')
+            .replace(/&lt;\/i&gt;/g, '</i>')
+            .replace(/&lt;em&gt;/g, '<em>')
+            .replace(/&lt;\/em&gt;/g, '</em>');
+        }).join('<br />');
         return `<p>${safeLines}</p>`;
       }).join('\n      ');
     }
@@ -595,13 +607,18 @@
       }
     }
 
-    function splitTextIntoChapters(rawText, fallbackTitle = 'Isi Buku') {
+    function splitTextIntoChapters(rawText, fallbackTitle = 'Isi Buku', options = {}) {
       let text = rawText.replace(/\r\n/g, '\n');
+      const skipFrontMatter = options.skipFrontMatter !== undefined
+        ? options.skipFrontMatter
+        : (el.optSkipFrontMatter ? el.optSkipFrontMatter.checked : true);
 
       if (el.optOcrAutoCorrect && el.optOcrAutoCorrect.checked) {
         text = applyStrictOcrAutoCorrect(text, {
           lang: (el.metaLang && el.metaLang.value) || 'id',
-          fixWordBreaks: el.optFixWordBreaks ? el.optFixWordBreaks.checked : true
+          fixWordBreaks: el.optFixWordBreaks ? el.optFixWordBreaks.checked : true,
+          skipFrontMatter,
+          ...options
         }).text;
       } else {
         if (document.getElementById('optCleanHeader').checked) {
@@ -614,7 +631,7 @@
       }
 
       const lines = text.split('\n');
-      const chapterRegex = /^(?:#{1,3}\s+(.+)|(BAB\s+[0-9IVXLCDM]+(?:\s*[:.\-—]\s*.*)?|CHAPTER\s+[0-9IVXLCDM]+(?:\s*[:.\-—]\s*.*)?|BAGIAN\s+[0-9IVXLCDM]+(?:\s*[:.\-—]\s*.*)?|PART\s+[0-9IVXLCDM]+(?:\s*[:.\-—]\s*.*)?|PROLOG|PROLOGUE|EPILOG|EPILOGUE|PREFACE|INTRODUCTION))$/i;
+      const chapterRegex = /^(?:#{1,3}\s+(.+)|(BAB\s+[0-9IVXLCDM]+(?:\s*[:.\-—]\s*.*)?|CHAPTER\s+[0-9IVXLCDM]+(?:\s*[:.\-—]\s*.*)?|BAGIAN\s+[0-9IVXLCDM]+(?:\s*[:.\-—]\s*.*)?|PART\s+[0-9IVXLCDM]+(?:\s*[:.\-—]\s*.*)?|PROLOG(?:\s+untuk\s+[^\n]+)?|PROLOGUE(?:\s+[^\n]+)?|EPILOG(?:\s+untuk\s+[^\n]+)?|EPILOGUE(?:\s+[^\n]+)?|PREFACE|INTRODUCTION))$/i;
 
       const chapters = [];
       let currentTitle = null;
@@ -645,7 +662,21 @@
         });
       }
 
-      const validChapters = chapters.filter(c => c.content.trim().length > 0);
+      let validChapters = chapters.filter(c => c.content.trim().length > 0);
+
+      // Lewati Halaman Pembuka / Front Matter (Katalog Dalam Terbitan, ISBN, Hak Cipta, The Wattys)
+      if (skipFrontMatter && validChapters.length > 1) {
+        const frontMatterIndicators = [
+          /Katalog Dalam Terbitan/i, /KDT\b/i, /ISBN\s*[0-9\-]+/i,
+          /Hak cipta dilindungi/i, /All rights reserved/i, /Cetakan ke-/i,
+          /Penerbit\s*:/i, /Distributor tunggal/i, /Desain sampul\s*:/i,
+          /Penata letak\s*:/i, /THE WATTYS/i, /PEMENANG:\s*.*THE WATTYS/i
+        ];
+        if (validChapters[0].title === 'Bagian Pembuka' && frontMatterIndicators.some(re => re.test(validChapters[0].content))) {
+          log('Halaman pembuka (Katalog KDT/Sampul/Penerbit) otomatis dilewati agar langsung ke bab cerita.', 'ok');
+          validChapters.shift();
+        }
+      }
 
       if (validChapters.length === 1) {
         const allParas = validChapters[0].content.split(/\n{2,}/);
@@ -1062,7 +1093,7 @@
         layout: 0
       };
 
-      // ── FASE 1: Normalisasi Unicode, Ligatur & Tanda Baca ─────────────
+      // ── SKILL 1: Normalisasi Unicode, Ligatur & Tanda Baca ─────────────
       const unicodeFixes = [
         ['\uFB01', 'fi'], ['\uFB02', 'fl'], ['\uFB00', 'ff'],
         ['\uFB03', 'ffi'], ['\uFB04', 'ffl'], ['\uFB06', 'st'],
@@ -1090,33 +1121,40 @@
         }
       }
 
-      // ── FASE 2: Pembersihan Margin Noise & Karakter Rusak Pemindai ────
+      // ── SKILL 1 (Lanjutan): Pembersihan Artefak OCR, Simbol Liar & Token Sampah ─
+      // Rapikan heading yang terpotong baris baru: "Prolog untuk \n Nona Teh" -> "Prolog untuk Nona Teh"
+      text = text.replace(/^Prolog untuk\s*\n\s*Nona Teh/gim, () => {
+        stats.layout++; return 'Prolog untuk Nona Teh';
+      });
+
+      // Buang baris simbol aneh / separator rusak
+      text = text.replace(/^[—\s]*©\s*$/gm, () => { stats.noise++; return ''; });
+      text = text.replace(/^[|\\/~_^\s*•]+$/gm, () => { stats.noise++; return ''; });
       text = text.replace(/^[|\\/]\s+/gm, () => { stats.noise++; return ''; });
       text = text.replace(/\s+[|\\/]$/gm, () => { stats.noise++; return ''; });
 
-      // ── FASE 3: Koreksi Karakter & Angka yang Tertukar (Regex Cerdas) ─
-      // 3a. Angka 0 di antara huruf alfabet -> o ("b0la" -> "bola", "pr0blem" -> "problem")
-      text = text.replace(/([a-zA-Z])0([a-zA-Z])/g, (_, a, b) => {
-        stats.characters++; return a + 'o' + b;
+      // Buang huruf tunggal terisolasi di baris tersendiri (seperti "n")
+      text = text.replace(/^[a-z]\s*$/gm, () => { stats.noise++; return ''; });
+
+      // Buang token noise acak hasil pemindaian di tengah kalimat
+      const noiseTokens = [
+        /\ba oa\b/gi,
+        /\bAA Nan aa >"?/gi,
+        /\bhy:\s*DS\s+of\s+LP\b/gi,
+        /"\s*naa\b/gi,
+        /\bSa ii DD p nnn\b/gi
+      ];
+      for (const nt of noiseTokens) {
+        text = text.replace(nt, () => { stats.noise++; return ''; });
+      }
+
+      // ── SKILL 2: Perbaikan Karakter & Angka yang Tertukar (Glif OCR) ────
+      // Angka 4 di tengah kata -> a (m4kan -> makan, b4ik -> baik)
+      text = text.replace(/([a-zA-Z])4([a-zA-Z])/g, (_, a, b) => {
+        stats.characters++; return a + 'a' + b;
       });
 
-      // 3b. Angka 1 di awal atau tengah kata alfabet -> l ("1ari" -> "lari", "bi1ang" -> "bilang")
-      text = text.replace(/([a-zA-Z])1([a-zA-Z])/g, (_, a, b) => {
-        stats.characters++; return a + 'l' + b;
-      });
-      text = text.replace(/\b1([a-z]{2,})\b/g, (_, rest) => {
-        stats.characters++; return 'l' + rest;
-      });
-
-      // 3c. Angka 5 di dalam kata alfabet -> s ("bi5a" -> "bisa", "5aya" -> "saya")
-      text = text.replace(/([a-zA-Z])5([a-zA-Z])/g, (_, a, b) => {
-        stats.characters++; return a + 's' + b;
-      });
-      text = text.replace(/\b5([a-z]{2,})\b/g, (_, rest) => {
-        stats.characters++; return 's' + rest;
-      });
-
-      // 3d. Angka 3 di dalam kata alfabet -> e ("m3reka" -> "mereka", "b3lum" -> "belum")
+      // Angka 3 di tengah kata -> e (m3reka -> mereka, b3lum -> belum)
       text = text.replace(/([a-zA-Z])3([a-zA-Z])/g, (_, a, b) => {
         stats.characters++; return a + 'e' + b;
       });
@@ -1124,44 +1162,86 @@
         stats.characters++; return cap + 'e' + rest;
       });
 
-      // 3e. Angka 8 di awal kata diikuti huruf kecil -> B ("8uku" -> "Buku", "8aik" -> "Baik")
+      // Angka 5 di dalam kata alfabet -> s (bi5a -> bisa, 5aya -> saya)
+      text = text.replace(/([a-zA-Z])5([a-zA-Z])/g, (_, a, b) => {
+        stats.characters++; return a + 's' + b;
+      });
+      text = text.replace(/\b5([a-z]{2,})\b/g, (_, rest) => {
+        stats.characters++; return 's' + rest;
+      });
+
+      // Angka 0 di antara huruf alfabet -> o (b0la -> bola, pr0blem -> problem)
+      text = text.replace(/([a-zA-Z])0([a-zA-Z])/g, (_, a, b) => {
+        stats.characters++; return a + 'o' + b;
+      });
+
+      // Angka 1 di awal atau tengah kata alfabet -> l (1ari -> lari, bi1ang -> bilang)
+      text = text.replace(/([a-zA-Z])1([a-zA-Z])/g, (_, a, b) => {
+        stats.characters++; return a + 'l' + b;
+      });
+      text = text.replace(/\b1([a-z]{2,})\b/g, (_, rest) => {
+        stats.characters++; return 'l' + rest;
+      });
+
+      // Angka 8 di awal kata diikuti huruf kecil -> B (8uku -> Buku, 8aik -> Baik)
       text = text.replace(/\b8([a-z]{3,})\b/g, (_, rest) => {
         stats.characters++; return 'B' + rest;
       });
 
-      // 3f. Tanda seru (!) di awal kata sebelum huruf -> I ("!tu" -> "Itu", "!bu" -> "Ibu", "!ni" -> "Ini")
+      // Tanda seru (!) di awal kata sebelum huruf -> I (!tu -> Itu, !bu -> Ibu)
       text = text.replace(/(^|[-.,;!?—"'\s])!([a-zA-Z]{1,})\b/g, (m, pfx, rest) => {
         stats.characters++; return pfx + 'I' + rest;
       });
 
-      // 3g. Huruf kapital I di awal kata diikuti konsonan lalu huruf kecil -> l ("Iaut" -> "laut", "Iihat" -> "lihat")
+      // Huruf kapital I di awal kata diikuti konsonan lalu huruf kecil -> l (Iaut -> laut, Iihat -> lihat)
       text = text.replace(/\bI([bcdfghjklmnpqrstvwxyz][a-z]{1,})\b/g, (m, rest) => {
         stats.characters++; return 'l' + rest;
       });
 
-      // 3h. Double v (vv) -> w ("vvaktu" -> "waktu", "vvajah" -> "wajah", "vvhat" -> "what")
+      // Double v (vv) -> w (vvaktu -> waktu, vvajah -> wajah)
       text = text.replace(/\bvv([a-z]+)\b/gi, (m, rest) => {
         stats.characters++;
         const isCap = m[0] === m[0].toUpperCase();
         return (isCap ? 'W' : 'w') + rest;
       });
 
-      // 3i. Kata ulang dengan tanda hubung rusak: "tiba~tiba", "tiba_tiba", "tiba=tiba" -> "tiba-tiba"
+      // Typo Glif & PUEBI Spesifik Novel
+      const typoRules = [
+        [/\bSabu siang\b/gi, 'Sabtu siang'],
+        [/\bstatus guo\b/gi, 'status quo'],
+        [/\bsampaisampai\b/gi, 'sampai-sampai'],
+        [/\bmengganggap\b/gi, 'menganggap'],
+        [/\bCelcius\b/gi, 'Celsius'],
+        [/\bdimana\b/gi, 'di mana'],
+        [/\bkemana\b/gi, 'ke mana'],
+        [/\bdisana\b/gi, 'di sana'],
+        [/\bdisini\b/gi, 'di sini'],
+        [/\bNona leh\b/gi, 'Nona Teh'],
+        [/\bTuan Kopt\b/gi, 'Tuan Kopi'],
+        [/\bAan SWT\b/gi, 'Allah SWT'],
+        [/\bkepercayaan\.\s+Cal\b/g, 'kepercayaan.']
+      ];
+      for (const [re, rep] of typoRules) {
+        if (re.test(text)) {
+          text = text.replace(re, () => { stats.vocabulary++; return rep; });
+        }
+      }
+
+      // Kata ulang dengan tanda hubung rusak: tiba~tiba, tiba_tiba, tiba=tiba -> tiba-tiba
       text = text.replace(/\b([a-zA-Z]{3,})[~_=\. ]{1,2}(\1)\b/gi, (m, w1, w2) => {
         stats.characters++; return `${w1}-${w2}`;
       });
 
-      // ── FASE 4: Koreksi Glif OCR Spesifik Bahasa (rn -> m, cl -> d, c -> e) ─
+      // ── SKILL 2 (Lanjutan): Glif OCR Spesifik Bahasa Indonesia (rn, cl, ce) ─
       if (lang === 'id' || lang === 'ind' || lang === 'ind+eng') {
-        // 4a. Awalan Verba Aktif Indonesia: rnem-, rnen-, rneng-, rney-, rner- -> mem-, men-, meng-, meny-, mer-
+        // Awalan Verba Aktif Indonesia: rnem-, rnen-, rneng- -> mem-, men-, meng-
         text = text.replace(/\brne(m|n|ng|y|r)([a-z]+)\b/gi, (m, pfx, rest) => {
           stats.vocabulary++;
           const isCap = m[0] === m[0].toUpperCase();
-          const newPfx = isCap ? ('M' + 'e' + pfx) : ('me' + pfx);
-          return newPfx + rest;
+          return (isCap ? ('M' + 'e' + pfx) : ('me' + pfx)) + rest;
         });
 
-        // 4b. Kata "rn" umum Bahasa Indonesia
+        // Glif rn Bahasa Indonesia
         const idRnMap = {
           'rnasa': 'masa', 'rnata': 'mata', 'rnau': 'mau', 'rnereka': 'mereka',
           'rnemang': 'memang', 'rnasih': 'masih', 'rnakan': 'makan', 'rninum': 'minum',
@@ -1186,7 +1266,7 @@
           });
         }
 
-        // 4c. Pola "cl" -> "d" pada Bahasa Indonesia
+        // Glif cl -> d Bahasa Indonesia
         const idClMap = {
           'clasar': 'dasar', 'clari': 'dari', 'clalam': 'dalam', 'clengan': 'dengan',
           'clia': 'dia', 'clepan': 'depan', 'clunia': 'dunia', 'clapat': 'dapat',
@@ -1203,7 +1283,7 @@
           });
         }
 
-        // 4d. Pola "c" -> "e" akibat rusaknya palang tengah huruf e
+        // Glif c -> e Bahasa Indonesia
         const idCeMap = {
           'bcrpikir': 'berpikir', 'bcrkata': 'berkata', 'bcrjalan': 'berjalan',
           'tcrsenyum': 'tersenyum', 'kctika': 'ketika', 'sctelah': 'setelah',
@@ -1221,7 +1301,7 @@
           });
         }
 
-        // 4e. Kata Terbelah / Spasi Palsu OCR Bahasa Indonesia
+        // Kata terbelah / spasi palsu
         const idSplitWords = [
           ['me reka', 'mereka'], ['se bagai', 'sebagai'], ['de ngan', 'dengan'],
           ['un tuk', 'untuk'], ['da lam', 'dalam'], ['ka rena', 'karena'],
@@ -1237,7 +1317,8 @@
           ['ma salah', 'masalah'], ['se orang', 'seorang'], ['su atu', 'suatu'],
           ['se gigih', 'segigih'], ['se buah', 'sebuah'], ['se gala', 'segala'],
           ['per tama', 'pertama'], ['ber sama', 'bersama'], ['ter baik', 'terbaik'],
-          ['ke hidupan', 'kehidupan'], ['pen didikan', 'pendidikan']
+          ['ke hidupan', 'kehidupan'], ['pen didikan', 'pendidikan'],
+          ['Karier nya', 'Kariernya'], ['karier nya', 'kariernya']
         ];
         for (const [wrong, right] of idSplitWords) {
           const re = new RegExp(`\\b${wrong}\\b`, 'gi');
@@ -1248,7 +1329,7 @@
         }
       }
 
-      // ── Kata OCR Bahasa Inggris ──────────────────────────────────────────
+      // Glif & Kata OCR Bahasa Inggris
       if (lang === 'en' || lang === 'ind+eng') {
         const enRnMap = {
           'rnan': 'man', 'rnen': 'men', 'rnore': 'more', 'rnust': 'must',
@@ -1282,7 +1363,33 @@
         }
       }
 
-      // ── FASE 5: Normalisasi Spasi Sekitar Tanda Baca ──────────────────────
+      // ── SKILL 3: Bahasa Asing & Dialog Batin (Tag <i>...</i>) ───────────
+      // Dialog batin: klausa sebelum batinku/batinnya berkata/berbisik/pikirku/desahku
+      text = text.replace(/(?:^|(?<=[.!?…\n]))\s*([^.!?…\n<]+?),\s*(batinku berkata|batinnya berkata|batinku berbisik|batinnya berbisik|pikirku|desahku dalam hati|gumamku dalam hati)\b/gi, (m, thought, tag) => {
+        stats.vocabulary++;
+        return ` <i>${thought.trim()}</i>, ${tag}`;
+      });
+
+      // Istilah asing umum novel
+      const foreignTerms = [
+        'status quo', 'de facto', 'de jure', 'vice versa', 'curriculum vitae',
+        'soulmate', 'chemistry', 'flashback', 'deja vu', 'mindset', 'overthinking',
+        'timeline', 'deadline', 'passion', 'coffee shop', 'deep talk', 'bodyguard',
+        'last but not least', 'warm regards'
+      ];
+      for (const term of foreignTerms) {
+        const re = new RegExp(`(?<!<i>)\\b(${term})\\b(?!<\\/i>)`, 'gi');
+        text = text.replace(re, (m, val) => {
+          stats.vocabulary++;
+          return `<i>${val}</i>`;
+        });
+      }
+
+      // ── SKILL 4: Format Chat / Pesan Singkat ───────────────────────────
+      // Rapikan [Pengirim: Pesan] -> Pengirim: Pesan
+      text = text.replace(/^\[([A-Z][a-zA-Z\s]{1,30}):\s*([^\]]+)\]$/gm, '$1: $2');
+
+      // ── Normalisasi Spasi Sekitar Tanda Baca ───────────────────────────
       text = text.replace(/([.!?])([A-Z\u00C0-\u00DC])/g, (_, p, c) => {
         stats.characters++; return p + ' ' + c;
       });
@@ -1295,7 +1402,7 @@
       text = text.replace(/\s+([.,;:!?])/g, '$1');
       text = text.replace(/[ \t]{2,}/g, ' ');
 
-      // ── FASE 6: Restorasi Paragraf Standar Buku Cetak ─────────────────────
+      // ── SKILL 5: Restorasi Paragraf Standar Buku Cetak ─────────────────
       text = formatBookParagraphs(text, stats, options);
 
       return { text, stats };
@@ -1314,7 +1421,7 @@
 
       const isSceneBreak = (line) => /^\s*(\* \* \*|\*\*\*|---|\-\-\-|\u2022 \u2022 \u2022|~ ~ ~)\s*$/.test(line);
       const isDialogue = (line) => /^\s*(?:—|–|- |"|“|«)\s*/.test(line);
-      const isHeading = (line) => /^(?:BAB\s+[0-9IVXLCDM]+|CHAPTER\s+[0-9IVXLCDM]+|BAGIAN\s+[0-9IVXLCDM]+|PART\s+[0-9IVXLCDM]+|PROLOG|EPILOG|PROLOGUE|EPILOGUE|PREFACE|INTRODUCTION|#{1,3}\s)/i.test(line);
+      const isHeading = (line) => /^(?:BAB\s+[0-9IVXLCDM]+|CHAPTER\s+[0-9IVXLCDM]+|BAGIAN\s+[0-9IVXLCDM]+|PART\s+[0-9IVXLCDM]+|PROLOG(?:\s+untuk\s+[^\n]+)?|PROLOGUE(?:\s+[^\n]+)?|EPILOG(?:\s+untuk\s+[^\n]+)?|EPILOGUE(?:\s+[^\n]+)?|PREFACE|INTRODUCTION|#{1,3}\s)/i.test(line);
       const endsWithSentence = (line) => /[.!?…"'»)\]]\s*$/.test(line);
       const endsWithHyphen = (line) => line.endsWith('-');
 
@@ -1365,6 +1472,33 @@
         const line = cleanedLines[i];
 
         if (line === '') {
+          // Inti Unwrapping Cerdas: jika baris berikutnya dimulai dengan huruf kecil,
+          // ini pasti lanjutan kalimat yang terpotong oleh jeda pindaian OCR
+          let nextLine = '';
+          for (let j = i + 1; j < cleanedLines.length; j++) {
+            if (cleanedLines[j]) {
+              nextLine = cleanedLines[j];
+              break;
+            }
+          }
+
+          const nextStartsLower = nextLine && /^[a-z]/.test(nextLine);
+
+          if (nextStartsLower && currentPara.length > 0) {
+            continue;
+          }
+
+          // Jika baris sebelumnya belum selesai kalimat dan bukan baris judul/tanggal terisolasi
+          if (currentPara.length > 0) {
+            const prev = currentPara[currentPara.length - 1];
+            const prevEndsComma = /[,;:]\s*$/.test(prev);
+            const isLongLine = prev.length >= 40;
+
+            if (prevEndsComma || (isLongLine && !endsWithSentence(prev))) {
+              continue;
+            }
+          }
+
           if (currentPara.length > 0) {
             paragraphs.push(currentPara.join(' '));
             currentPara = [];
@@ -1395,11 +1529,11 @@
         if (currentPara.length > 0) {
           const prevLine = currentPara[currentPara.length - 1];
           const prevEndsSentence = endsWithSentence(prevLine);
-          const isShortEnding = prevLine.length < 42;
+          const isLongLine = prevLine.length >= 40;
           const nextStartsLower = /^[a-z]/.test(line);
           const prevEndsComma = /[,;:]\s*$/.test(prevLine);
 
-          if (!prevEndsSentence || nextStartsLower || prevEndsComma || !isShortEnding) {
+          if (nextStartsLower || prevEndsComma || (isLongLine && !prevEndsSentence)) {
             currentPara.push(line);
             stats.layout++;
             continue;
